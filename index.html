@@ -3,107 +3,100 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DSA AI Expert - Subhadip's Project</title>
+    <title>DSA Expert AI - Subhadip's Edition</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        .chat-bg { background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); }
-        .bot-msg { background-color: #ffffff; border: 1px solid #e2e8f0; border-bottom-left-radius: 2px; }
-        .user-msg { background-color: #2563eb; color: white; border-bottom-right-radius: 2px; }
-        #chat-window { height: calc(100vh - 160px); scroll-behavior: smooth; }
+        .message-bubble { max-width: 85%; padding: 12px 16px; border-radius: 18px; line-height: 1.5; font-size: 15px; }
+        .user-msg { background-color: #2563eb; color: white; align-self: flex-end; border-bottom-right-radius: 4px; }
+        .bot-msg { background-color: #f3f4f6; color: #1f2937; align-self: flex-start; border-bottom-left-radius: 4px; border: 1px solid #e5e7eb; }
+        #chat-box { height: calc(100vh - 140px); scroll-behavior: smooth; display: flex; flex-direction: column; }
     </style>
 </head>
-<body class="chat-bg h-screen flex flex-col font-sans">
+<body class="bg-gray-50 flex flex-col h-screen overflow-hidden">
 
-    <nav class="bg-white p-4 shadow-md flex justify-between items-center">
-        <h1 class="text-xl font-bold text-blue-700 underline decoration-2">DSA EXPERT AI</h1>
-        <span class="text-xs font-mono bg-blue-100 text-blue-800 px-2 py-1 rounded">V2.0 STABLE</span>
+    <nav class="bg-white border-b px-4 py-3 shadow-sm flex justify-between items-center">
+        <span class="text-xl font-bold text-blue-600">DSA <span class="text-gray-800">Expert</span></span>
+        <span class="text-xs font-mono bg-blue-100 text-blue-700 px-2 py-1 rounded">SUBHADIP'S PROJECT</span>
     </nav>
 
-    <div id="chat-window" class="flex-1 overflow-y-auto p-4 space-y-4 flex flex-col">
-        <div class="bot-msg p-3 rounded-xl shadow-sm max-w-[85%] self-start text-gray-800">
-            Hello! I am your direct-access DSA Expert. How can I help you with Data Structures today?
+    <div id="chat-box" class="flex-1 overflow-y-auto p-4 gap-4">
+        <div class="bot-msg message-bubble">
+            Hello! I am your direct-access DSA Expert. Ask me anything about Data Structures!
         </div>
     </div>
 
-    <div class="p-4 bg-white border-t-2 border-gray-100">
-        <div class="flex gap-2 max-w-4xl mx-auto">
-            <input type="text" id="user-input" class="flex-1 border-2 border-gray-200 rounded-full px-5 py-2 outline-none focus:border-blue-500 transition-all" placeholder="Ask about Stacks, Queues, Sorting...">
-            <button onclick="sendToAI()" class="bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-full transition-transform active:scale-90 shadow-lg">
-                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+    <div class="p-4 bg-white border-t">
+        <div class="max-w-4xl mx-auto flex gap-2">
+            <input type="text" id="input-field" class="flex-1 border border-gray-300 rounded-full px-5 py-3 outline-none focus:ring-2 focus:ring-blue-500" placeholder="Ask about Stacks, Queues, Sorting...">
+            <button onclick="askGemini()" class="bg-blue-600 text-white p-3 rounded-full hover:bg-blue-700 active:scale-95 shadow-md transition-all">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M6 12L3.269 3.126A59.768 59.768 0 0121.485 12 59.77 59.77 0 013.27 20.876L5.999 12zm0 0h7.5" />
                 </svg>
             </button>
         </div>
     </div>
 
     <script>
-        // আপনার নতুন এবং স্টেবল গুগল এপিআই কী এখানে বসানো হলো
-        const API_KEY = "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"; 
+        // আপনার দেওয়া নতুন এপিআই কী এখানে সেট করা হয়েছে
+        const API_KEY = "AIzaSyDU3-MLvvNa4RAWNcMK0qreyJ2pTTxmCbw"; 
         
-        const SYSTEM_PROMPT = `You are a DSA Expert Assistant for Subhadip Koley's hackathon project. 
+        const SYSTEM_DATA = `Role: You are a DSA Expert for Subhadip Koley's hackathon project. 
         Dataset:
-        1. Arrays: Contiguous memory, O(1) access.
-        2. Linked Lists: Nodes with pointers, O(1) head insertion.
-        3. Stacks: LIFO (Push, Pop).
-        4. Queues: FIFO (Enqueue, Dequeue).
-        5. Sorting: Merge Sort O(n log n), Bubble Sort O(n^2).
-        If not DSA, say "I am a specialized DSA bot for Subhadip's project."`;
+        1. Arrays: Contiguous memory, Access: O(1).
+        2. Linked Lists: Nodes with pointers, Insertion: O(1).
+        3. Stacks: LIFO structure.
+        4. Queues: FIFO structure.
+        5. Trees/Graphs: Hierarchical and network structures.
+        If any question is outside DSA, say: "I am a specialized DSA bot for Subhadip's project."`;
 
-        async function sendToAI() {
-            const inputField = document.getElementById('user-input');
-            const chatWindow = document.getElementById('chat-window');
-            const userText = inputField.value.trim();
-
-            if (!userText) return;
+        async function askGemini() {
+            const input = document.getElementById('input-field');
+            const box = document.getElementById('chat-box');
+            const query = input.value.trim();
+            if (!query) return;
 
             // User Message UI
-            chatWindow.innerHTML += `<div class="user-msg p-3 rounded-xl shadow-md max-w-[85%] self-end">${userText}</div>`;
-            inputField.value = "";
-            chatWindow.scrollTop = chatWindow.scrollHeight;
+            box.innerHTML += `<div class="user-msg message-bubble shadow-sm">${query}</div>`;
+            input.value = "";
+            box.scrollTop = box.scrollHeight;
 
-            // Bot Loading UI
+            // Loading UI
             const loader = document.createElement('div');
-            loader.className = 'bot-msg p-3 rounded-xl shadow-sm max-w-[85%] self-start italic text-gray-500';
+            loader.className = 'bot-msg message-bubble italic text-gray-500';
             loader.innerText = 'Analyzing...';
-            chatWindow.appendChild(loader);
+            box.appendChild(loader);
 
             try {
-                const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+                // Direct Google API Call
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
+                
+                const response = await fetch(url, {
                     method: "POST",
-                    headers: {
-                        "Authorization": "Bearer " + API_KEY,
-                        "Content-Type": "application/json",
-                        "HTTP-Referer": window.location.origin
-                    },
+                    headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({
-                        model: "google/gemini-2.0-flash-lite-preview-02-05:free",
-                        messages: [
-                            { role: "system", content: SYSTEM_PROMPT },
-                            { role: "user", content: userText }
-                        ]
+                        contents: [{ parts: [{ text: SYSTEM_DATA + "\n\nUser Question: " + query }] }]
                     })
                 });
 
                 const data = await response.json();
                 loader.remove();
 
-                if (data.choices && data.choices[0]) {
-                    const reply = data.choices[0].message.content;
-                    chatWindow.innerHTML += `<div class="bot-msg p-3 rounded-xl shadow-sm max-w-[85%] self-start text-gray-800">${reply}</div>`;
+                if (data.candidates && data.candidates[0].content.parts[0].text) {
+                    const reply = data.candidates[0].content.parts[0].text;
+                    box.innerHTML += `<div class="bot-msg message-bubble shadow-sm">${reply}</div>`;
                 } else {
-                    throw new Error("API Limit reached");
+                    throw new Error("Invalid Response");
                 }
             } catch (err) {
-                loader.innerText = "Error: System busy. Please try again in 1 minute.";
+                loader.innerText = "Error: Check your API connection.";
                 console.error(err);
             }
-            chatWindow.scrollTop = chatWindow.scrollHeight;
+            box.scrollTop = box.scrollHeight;
         }
 
-        document.getElementById('user-input').addEventListener('keypress', (e) => {
-            if (e.key === 'Enter') sendToAI();
+        document.getElementById('input-field').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') askGemini();
         });
     </script>
 </body>
 </html>
-
