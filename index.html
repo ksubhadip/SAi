@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DSA AI Expert - Subhadip's Project</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .chat-bg { background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%); }
+        .bot-msg { background-color: #ffffff; border: 1px solid #e2e8f0; border-bottom-left-radius: 2px; }
+        .user-msg { background-color: #2563eb; color: white; border-bottom-right-radius: 2px; }
+        #chat-window { height: calc(100vh - 160px); scroll-behavior: smooth; }
+    </style>
+</head>
+<body class="chat-bg h-screen flex flex-col font-sans">
+
+    <nav class="bg-white p-4 shadow-md flex justify-between items-center">
+        <h1 class="text-xl font-bold text-blue-700 underline decoration-2">DSA EXPERT AI</h1>
+        <span class="text-xs font-mono bg-blue-100 text-blue-800 px-2 py-1 rounded">V2.0 STABLE</span>
+    </nav>
+
+    <div id="chat-window" class="flex-1 overflow-y-auto p-4 space-y-4 flex flex-col">
+        <div class="bot-msg p-3 rounded-xl shadow-sm max-w-[85%] self-start text-gray-800">
+            Hello! I am your direct-access DSA Expert. How can I help you with Data Structures today?
+        </div>
+    </div>
+
+    <div class="p-4 bg-white border-t-2 border-gray-100">
+        <div class="flex gap-2 max-w-4xl mx-auto">
+            <input type="text" id="user-input" class="flex-1 border-2 border-gray-200 rounded-full px-5 py-2 outline-none focus:border-blue-500 transition-all" placeholder="Ask about Stacks, Queues, Sorting...">
+            <button onclick="sendToAI()" class="bg-blue-600 hover:bg-blue-700 text-white p-3 rounded-full transition-transform active:scale-90 shadow-lg">
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                </svg>
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // আপনার নতুন এবং স্টেবল গুগল এপিআই কী এখানে বসানো হলো
+        const API_KEY = "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"; 
+        
+        const SYSTEM_PROMPT = `You are a DSA Expert Assistant for Subhadip Koley's hackathon project. 
+        Dataset:
+        1. Arrays: Contiguous memory, O(1) access.
+        2. Linked Lists: Nodes with pointers, O(1) head insertion.
+        3. Stacks: LIFO (Push, Pop).
+        4. Queues: FIFO (Enqueue, Dequeue).
+        5. Sorting: Merge Sort O(n log n), Bubble Sort O(n^2).
+        If not DSA, say "I am a specialized DSA bot for Subhadip's project."`;
+
+        async function sendToAI() {
+            const inputField = document.getElementById('user-input');
+            const chatWindow = document.getElementById('chat-window');
+            const userText = inputField.value.trim();
+
+            if (!userText) return;
+
+            // User Message UI
+            chatWindow.innerHTML += `<div class="user-msg p-3 rounded-xl shadow-md max-w-[85%] self-end">${userText}</div>`;
+            inputField.value = "";
+            chatWindow.scrollTop = chatWindow.scrollHeight;
+
+            // Bot Loading UI
+            const loader = document.createElement('div');
+            loader.className = 'bot-msg p-3 rounded-xl shadow-sm max-w-[85%] self-start italic text-gray-500';
+            loader.innerText = 'Analyzing...';
+            chatWindow.appendChild(loader);
+
+            try {
+                const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+                    method: "POST",
+                    headers: {
+                        "Authorization": "Bearer " + API_KEY,
+                        "Content-Type": "application/json",
+                        "HTTP-Referer": window.location.origin
+                    },
+                    body: JSON.stringify({
+                        model: "google/gemini-2.0-flash-lite-preview-02-05:free",
+                        messages: [
+                            { role: "system", content: SYSTEM_PROMPT },
+                            { role: "user", content: userText }
+                        ]
+                    })
+                });
+
+                const data = await response.json();
+                loader.remove();
+
+                if (data.choices && data.choices[0]) {
+                    const reply = data.choices[0].message.content;
+                    chatWindow.innerHTML += `<div class="bot-msg p-3 rounded-xl shadow-sm max-w-[85%] self-start text-gray-800">${reply}</div>`;
+                } else {
+                    throw new Error("API Limit reached");
+                }
+            } catch (err) {
+                loader.innerText = "Error: System busy. Please try again in 1 minute.";
+                console.error(err);
+            }
+            chatWindow.scrollTop = chatWindow.scrollHeight;
+        }
+
+        document.getElementById('user-input').addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') sendToAI();
+        });
+    </script>
+</body>
+</html>
+
