@@ -1,82 +1,863 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>DSA Expert AI - Final Fix</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        .message-bubble { max-width: 85%; padding: 12px 16px; border-radius: 18px; line-height: 1.5; }
-        .user-msg { background-color: #2563eb; color: white; align-self: flex-end; border-bottom-right-radius: 4px; }
-        .bot-msg { background-color: #f3f4f6; color: #1f2937; align-self: flex-start; border-bottom-left-radius: 4px; border: 1px solid #e5e7eb; }
-        #chat-box { height: calc(100vh - 140px); scroll-behavior: smooth; display: flex; flex-direction: column; }
-    </style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+  <title>Universal AI Chat (Zero-Build)</title>
+
+  <!-- Tailwind via CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Marked for Markdown -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+
+  <style>
+    /* Minimal custom tweaks */
+    :root{
+      --safe-bottom: env(safe-area-inset-bottom, 12px);
+    }
+    html,body,#app { min-height:100%; }
+    /* keep input visible above mobile keyboard: sticky + padding-bottom using safe-area-inset */
+    .composer-safe { padding-bottom: calc(var(--safe-bottom) + 8px); }
+    .scroll-area { -webkit-overflow-scrolling: touch; }
+    .msg-bubble { word-break: break-word; white-space: pre-wrap; }
+    .code-block pre { white-space: pre-wrap; overflow:auto; }
+    /* loader */
+    #loading { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(255,255,255,0.95); z-index:60; font-weight:600; }
+    /* small scrollbar */
+    .thin-scroll::-webkit-scrollbar { height:8px; width:8px; }
+    .thin-scroll::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.12); border-radius:8px; }
+  </style>
 </head>
-<body class="bg-gray-50 flex flex-col h-screen overflow-hidden">
+<body class="antialiased bg-slate-50 text-slate-800">
+  <!-- Fallback loader (must be visible until JS initializes) -->
+  <div id="loading">Loading App…</div>
 
-    <nav class="bg-white border-b px-4 py-3 shadow-sm text-center">
-        <span class="text-xl font-bold text-blue-600">DSA AI Expert</span>
-    </nav>
+  <div id="app" class="min-h-screen flex flex-col md:flex-row">
 
-    <div id="chat-box" class="flex-1 overflow-y-auto p-4 gap-4">
-        <div class="bot-msg message-bubble">
-            Hello Subhadip! I am ready. Ask me anything about DSA!
+    <!-- Sidebar -->
+    <aside id="sidebar" class="w-full md:w-80 bg-white border-r border-slate-200 md:block hidden flex-shrink-0">
+      <div class="px-4 py-3 border-b flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-md bg-gradient-to-br from-indigo-600 to-purple-600 text-white flex items-center justify-center font-semibold">AI</div>
+          <div>
+            <div class="text-sm font-semibold">Universal AI</div>
+            <div class="text-xs text-slate-500">Static • Zero-build</div>
+          </div>
         </div>
-    </div>
-
-    <div class="p-4 bg-white border-t">
-        <div class="max-w-4xl mx-auto flex gap-2">
-            <input type="text" id="input-field" class="flex-1 border border-gray-300 rounded-full px-5 py-3 outline-none" placeholder="Type here...">
-            <button onclick="askAI()" class="bg-blue-600 text-white p-3 rounded-full">Send</button>
+        <div class="flex items-center gap-2">
+          <button id="mobileCloseSidebar" class="md:hidden text-slate-600" title="Close sidebar">
+            ✕
+          </button>
+          <button id="newChatBtn" class="text-sm bg-indigo-600 text-white px-3 py-1 rounded-md">New</button>
         </div>
+      </div>
+
+      <div class="px-3 py-2">
+        <input id="searchInput" placeholder="Search chats..." class="w-full rounded-md border border-slate-200 px-3 py-2 text-sm focus:outline-none" />
+      </div>
+
+      <div class="px-3 py-2 flex items-center gap-2 border-b border-slate-100">
+        <button id="exportBtn" class="text-xs bg-emerald-50 text-emerald-700 px-3 py-1 rounded-md">Export</button>
+        <label for="importFile" class="text-xs bg-yellow-50 text-yellow-800 px-3 py-1 rounded-md cursor-pointer">Import</label>
+        <input id="importFile" type="file" accept="application/json" class="hidden" />
+        <button id="clearAllBtn" class="ml-auto text-xs text-red-600">Clear all</button>
+      </div>
+
+      <div id="chatsContainer" class="px-2 py-2 overflow-auto thin-scroll sidebar-scroll scroll-area" style="max-height:calc(100vh - 220px)"></div>
+
+      <div class="px-4 py-3 border-t text-xs text-slate-500">
+        <div>Model:</div>
+        <div id="modelDisplay" class="text-sm font-medium text-slate-700 truncate">deepseek/deepseek-r1:free</div>
+        <div class="mt-2 flex items-center gap-2">
+          <button id="settingsBtn" class="text-sm px-3 py-1 rounded-md bg-slate-100">Settings</button>
+          <button id="themeToggle" class="text-sm px-3 py-1 rounded-md bg-slate-100">Dark</button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Main area -->
+    <main class="flex-1 min-h-0 flex flex-col">
+      <!-- top bar (mobile) -->
+      <div class="px-3 py-2 bg-white border-b flex items-center justify-between md:hidden">
+        <div class="flex items-center gap-2">
+          <button id="hamburger" class="p-2 rounded-md bg-slate-100">☰</button>
+          <div class="text-sm font-semibold">Universal AI</div>
+        </div>
+        <div class="text-xs text-slate-500">Mobile</div>
+      </div>
+
+      <!-- chat header -->
+      <header class="px-4 py-3 flex items-center justify-between bg-white border-b">
+        <div>
+          <div id="chatTitle" class="text-lg font-semibold">Welcome</div>
+          <div id="chatMeta" class="text-xs text-slate-500">Start a new chat or select from left</div>
+        </div>
+        <div class="flex items-center gap-3">
+          <button id="renameChatBtn" class="text-sm text-slate-600 hidden">Rename</button>
+          <button id="deleteChatBtn" class="text-sm text-red-600 hidden">Delete</button>
+        </div>
+      </header>
+
+      <!-- messages scroll area -->
+      <section id="messagesScroll" class="flex-1 overflow-auto scroll-area px-4 py-6 thin-scroll" style="background:linear-gradient(180deg,#fbfdff, #ffffff);">
+        <div id="messagesList" class="max-w-3xl mx-auto space-y-4"></div>
+      </section>
+
+      <!-- composer (sticky bottom) -->
+      <div class="bg-white border-t composer-safe" style="position:sticky; bottom:0; z-index:40;">
+        <div class="max-w-3xl mx-auto px-4 py-3">
+          <div class="flex items-start gap-2">
+            <textarea id="inputBox" rows="1" placeholder="Type a message (Enter to send, Shift+Enter for newline)" class="flex-1 resize-none rounded-md border border-slate-200 px-3 py-2 text-sm focus:outline-none"></textarea>
+            <div class="flex flex-col gap-2">
+              <button id="sendBtn" class="bg-indigo-600 text-white px-4 py-2 rounded-md">Send</button>
+              <button id="mockBtn" class="bg-slate-100 text-slate-700 px-3 py-2 rounded-md text-xs">Mock</button>
+            </div>
+          </div>
+          <div class="mt-2 text-xs text-slate-400">Press Enter to send • Messages stored locally</div>
+        </div>
+      </div>
+    </main>
+  </div>
+
+  <!-- Settings Modal -->
+  <div id="modal" class="fixed inset-0 hidden items-center justify-center z-50">
+    <div class="absolute inset-0 bg-black/40"></div>
+    <div class="bg-white rounded-lg shadow-lg w-full max-w-2xl z-10">
+      <div class="p-4 border-b flex items-center justify-between">
+        <div class="text-lg font-semibold">Settings</div>
+        <button id="closeModal" class="text-sm text-slate-600">Close</button>
+      </div>
+      <div class="p-4 space-y-4">
+        <div>
+          <label class="text-xs text-slate-500">OpenRouter API Key</label>
+          <input id="apiKey" type="password" placeholder="sk-..." class="w-full mt-1 rounded-md border border-slate-200 px-3 py-2" />
+          <div class="text-xs text-slate-400 mt-1">Stored locally in browser only.</div>
+        </div>
+        <div>
+          <label class="text-xs text-slate-500">Model Name</label>
+          <input id="modelName" placeholder="deepseek/deepseek-r1:free" class="w-full mt-1 rounded-md border border-slate-200 px-3 py-2" />
+        </div>
+        <div>
+          <label class="text-xs text-slate-500">Custom Endpoint (optional)</label>
+          <input id="customEndpoint" placeholder="https://openrouter.ai/api/v1/chat/completions" class="w-full mt-1 rounded-md border border-slate-200 px-3 py-2" />
+          <div class="text-xs text-slate-400 mt-1">Leave blank to use https://openrouter.ai/api/v1/chat/completions</div>
+        </div>
+        <div>
+          <label class="text-xs text-slate-500">Global System Prompt (optional)</label>
+          <textarea id="globalSystem" rows="3" class="w-full mt-1 rounded-md border border-slate-200 px-3 py-2 text-sm"></textarea>
+          <div class="text-xs text-slate-400 mt-1">Applied when a chat has no per-chat system prompt.</div>
+        </div>
+        <div class="flex items-center gap-2">
+          <button id="saveSettings" class="bg-indigo-600 text-white px-4 py-2 rounded-md">Save</button>
+          <button id="clearSettings" class="text-sm text-red-600">Clear</button>
+        </div>
+      </div>
     </div>
+  </div>
 
-    <script>
-        const API_KEY = "AIzaSyDU3-MLvvNa4RAWNcMK0qreyJ2pTTxmCbw"; 
-        const SYSTEM_DATA = "You are a DSA Expert. Answer only DSA questions briefly.";
+  <!-- Templates -->
+  <template id="chatItemTpl">
+    <div class="chat-item flex items-center gap-3 p-3 rounded-md hover:bg-slate-50 cursor-pointer">
+      <div class="w-9 h-9 rounded-md bg-indigo-50 flex items-center justify-center text-indigo-700 font-semibold">AI</div>
+      <div class="flex-1 min-w-0">
+        <div class="chat-title text-sm font-medium truncate">Chat title</div>
+        <div class="chat-snippet text-xs text-slate-400 truncate">Snippet</div>
+      </div>
+      <div class="text-xs text-slate-400 chat-time">time</div>
+    </div>
+  </template>
 
-        async function askAI() {
-            const input = document.getElementById('input-field');
-            const box = document.getElementById('chat-box');
-            const query = input.value.trim();
-            if (!query) return;
+  <template id="userMsgTpl">
+    <div class="flex justify-end">
+      <div class="msg-bubble bg-indigo-600 text-white p-3 rounded-lg rounded-br-none max-w-[80%] shadow-sm">
+        <div class="msg-content prose text-sm user-content"></div>
+        <div class="text-xs mt-2 text-white/80 flex gap-2 justify-end">
+          <button class="copyBtn text-white/90">Copy</button>
+        </div>
+      </div>
+    </div>
+  </template>
 
-            box.innerHTML += `<div class="user-msg message-bubble">${query}</div>`;
-            input.value = "";
-            box.scrollTop = box.scrollHeight;
+  <template id="aiMsgTpl">
+    <div class="flex justify-start">
+      <div class="msg-bubble bg-white p-3 rounded-lg rounded-bl-none border border-slate-100 max-w-[80%] shadow-sm">
+        <div class="msg-content prose text-sm ai-content"></div>
+        <div class="text-xs mt-2 text-slate-400 flex gap-2 justify-end">
+          <button class="copyBtn">Copy</button>
+        </div>
+      </div>
+    </div>
+  </template>
 
-            const loader = document.createElement('div');
-            loader.className = 'bot-msg message-bubble italic';
-            loader.innerText = 'AI is thinking...';
-            box.appendChild(loader);
+  <!-- Script MUST be at the VERY END of body -->
+  <script>
+  (function(){
+    'use strict';
+    /* ========= Defensive / Safe App Boot ========= */
 
-            try {
-                // Correct Google Gemini API Endpoint & Format
-                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`, {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({
-                        contents: [{
-                            parts: [{ text: SYSTEM_DATA + "\n\nUser: " + query }]
-                        }]
-                    })
-                });
+    // Loading guard: ensure the loader is hidden only after init
+    const loader = document.getElementById('loading');
+    function hideLoader() { try { loader.style.display = 'none'; } catch(e){} }
 
-                const data = await response.json();
-                loader.remove();
+    // Storage keys
+    const KEYS = {
+      CHATS: 'uai_chats_v1',
+      SETTINGS: 'uai_settings_v1',
+      THEME: 'uai_theme_v1',
+      ACTIVE: 'uai_active_v1',
+    };
 
-                if (data.candidates && data.candidates[0].content.parts[0].text) {
-                    const reply = data.candidates[0].content.parts[0].text;
-                    box.innerHTML += `<div class="bot-msg message-bubble">${reply}</div>`;
-                } else {
-                    throw new Error("API Limit or Error");
-                }
-            } catch (err) {
-                loader.innerText = "Error: Please check your API Key settings in Google AI Studio.";
-                console.error(err);
-            }
-            box.scrollTop = box.scrollHeight;
+    // DOM refs
+    const chatsContainer = document.getElementById('chatsContainer');
+    const newChatBtn = document.getElementById('newChatBtn');
+    const searchInput = document.getElementById('searchInput');
+    const exportBtn = document.getElementById('exportBtn');
+    const importFile = document.getElementById('importFile');
+    const clearAllBtn = document.getElementById('clearAllBtn');
+    const settingsBtn = document.getElementById('settingsBtn');
+    const modal = document.getElementById('modal');
+    const closeModal = document.getElementById('closeModal');
+    const saveSettingsBtn = document.getElementById('saveSettings');
+    const clearSettingsBtn = document.getElementById('clearSettings');
+    const apiKeyInput = document.getElementById('apiKey');
+    const modelInput = document.getElementById('modelName');
+    const customEndpointInput = document.getElementById('customEndpoint');
+    const globalSystemInput = document.getElementById('globalSystem');
+    const modelDisplay = document.getElementById('modelDisplay');
+    const themeToggle = document.getElementById('themeToggle');
+    const hamburger = document.getElementById('hamburger');
+    const sidebar = document.getElementById('sidebar');
+    const mobileCloseSidebar = document.getElementById('mobileCloseSidebar');
+
+    const chatTitle = document.getElementById('chatTitle');
+    const chatMeta = document.getElementById('chatMeta');
+    const renameChatBtn = document.getElementById('renameChatBtn');
+    const deleteChatBtn = document.getElementById('deleteChatBtn');
+
+    const messagesList = document.getElementById('messagesList');
+    const messagesScroll = document.getElementById('messagesScroll');
+    const inputBox = document.getElementById('inputBox');
+    const sendBtn = document.getElementById('sendBtn');
+    const mockBtn = document.getElementById('mockBtn');
+
+    const chatItemTpl = document.getElementById('chatItemTpl');
+    const userMsgTpl = document.getElementById('userMsgTpl');
+    const aiMsgTpl = document.getElementById('aiMsgTpl');
+
+    // app state
+    let state = {
+      chats: [], // {id,title,createdAt,updatedAt,system, messages: [{role,content,ts}]}
+      settings: { apiKey:'', model:'deepseek/deepseek-r1:free', endpoint:'https://openrouter.ai/api/v1/chat/completions', globalSystem:'' },
+      activeId: null,
+      theme: 'light',
+      streamingController: null
+    };
+
+    /* ---------- Utilities ---------- */
+    function uid(prefix='c'){ return prefix + '_' + Math.random().toString(36).slice(2,9); }
+    function nowISO(){ return new Date().toISOString(); }
+    function safeParseJSON(s, fallback){ try { return JSON.parse(s || 'null') || fallback; } catch(e){ return fallback; } }
+    function saveState(){
+      try {
+        localStorage.setItem(KEYS.CHATS, JSON.stringify(state.chats));
+        localStorage.setItem(KEYS.SETTINGS, JSON.stringify(state.settings));
+        localStorage.setItem(KEYS.ACTIVE, state.activeId || '');
+        localStorage.setItem(KEYS.THEME, state.theme);
+      } catch(e){
+        console.warn('Saving failed', e);
+      }
+    }
+    function loadState(){
+      try {
+        state.chats = safeParseJSON(localStorage.getItem(KEYS.CHATS), []);
+        state.settings = Object.assign(state.settings, safeParseJSON(localStorage.getItem(KEYS.SETTINGS), {}));
+        state.activeId = localStorage.getItem(KEYS.ACTIVE) || null;
+        state.theme = localStorage.getItem(KEYS.THEME) || state.theme;
+      } catch(e){
+        console.warn('Load failed', e);
+      }
+    }
+
+    /* ---------- Theme ---------- */
+    function applyTheme(){
+      if(state.theme === 'dark'){
+        document.documentElement.classList.add('dark');
+        document.body.classList.add('bg-slate-900','text-slate-100');
+        themeToggle.textContent = 'Light';
+      } else {
+        document.documentElement.classList.remove('dark');
+        document.body.classList.remove('bg-slate-900','text-slate-100');
+        themeToggle.textContent = 'Dark';
+      }
+      localStorage.setItem(KEYS.THEME, state.theme);
+    }
+    themeToggle.addEventListener('click', () => {
+      state.theme = state.theme === 'dark' ? 'light' : 'dark';
+      applyTheme();
+      saveState();
+    });
+
+    /* ---------- Chat CRUD ---------- */
+    function createChat(title = 'New chat', opts = {}) {
+      const c = {
+        id: uid('chat'),
+        title: title || 'New chat',
+        createdAt: nowISO(),
+        updatedAt: nowISO(),
+        system: opts.system || null,
+        messages: opts.messages || []
+      };
+      state.chats.unshift(c);
+      state.activeId = c.id;
+      saveState();
+      renderSidebar();
+      renderActiveChat();
+      return c;
+    }
+
+    function deleteChat(id){
+      const idx = state.chats.findIndex(c=>c.id===id);
+      if(idx === -1) return;
+      state.chats.splice(idx,1);
+      if(state.activeId === id) state.activeId = state.chats.length ? state.chats[0].id : null;
+      saveState();
+      renderSidebar();
+      renderActiveChat();
+    }
+
+    function renameChat(id, newTitle){
+      const c = state.chats.find(x=>x.id===id);
+      if(!c) return;
+      c.title = newTitle || c.title;
+      c.updatedAt = nowISO();
+      saveState();
+      renderSidebar();
+      renderActiveChat();
+    }
+
+    function addMessage(id, role, content){
+      const c = state.chats.find(x=>x.id===id);
+      if(!c) return;
+      c.messages.push({ role, content, ts: nowISO() });
+      c.updatedAt = nowISO();
+      saveState();
+    }
+
+    function setActive(id){
+      state.activeId = id;
+      localStorage.setItem(KEYS.ACTIVE, state.activeId || '');
+      renderSidebar();
+      renderActiveChat();
+    }
+
+    /* ---------- Rendering Sidebar ---------- */
+    function renderSidebar(filter=''){
+      chatsContainer.innerHTML = '';
+      const filtered = state.chats.filter(c => {
+        if(!filter) return true;
+        return (c.title && c.title.toLowerCase().includes(filter)) ||
+               (c.messages && c.messages.some(m => m.content.toLowerCase().includes(filter)));
+      });
+      filtered.forEach(c => {
+        const node = chatItemTpl.content.cloneNode(true);
+        const item = node.querySelector('.chat-item');
+        item.dataset.id = c.id;
+        if(c.id === state.activeId) item.classList.add('bg-indigo-50');
+        node.querySelector('.chat-title').textContent = c.title || 'Chat';
+        const last = c.messages.length ? c.messages[c.messages.length-1] : null;
+        node.querySelector('.chat-snippet').textContent = last ? (last.content.slice(0,80).replace(/\n/g,' ')) : 'No messages yet';
+        node.querySelector('.chat-time').textContent = c.updatedAt ? new Date(c.updatedAt).toLocaleString() : '';
+        item.addEventListener('click', ()=> setActive(c.id));
+        item.addEventListener('contextmenu', (ev)=>{
+          ev.preventDefault();
+          const action = confirm('Delete this chat? OK = delete, Cancel = rename');
+          if(action) deleteChat(c.id); else {
+            const newTitle = prompt('Rename chat', c.title);
+            if(newTitle) renameChat(c.id, newTitle);
+          }
+        });
+        chatsContainer.appendChild(node);
+      });
+      if(filtered.length === 0){
+        const empty = document.createElement('div');
+        empty.className = 'p-4 text-sm text-slate-400';
+        empty.textContent = 'No chats yet. Click New.';
+        chatsContainer.appendChild(empty);
+      }
+      modelDisplay.textContent = state.settings.model || 'deepseek/deepseek-r1:free';
+    }
+
+    /* ---------- Render Active Chat ---------- */
+    function clearMessages(){
+      messagesList.innerHTML = '';
+    }
+
+    function renderActiveChat(){
+      clearMessages();
+      const chat = state.chats.find(c=>c.id===state.activeId);
+      if(!chat){
+        chatTitle.textContent = 'Welcome';
+        chatMeta.textContent = 'Start a new chat or create one from the left.';
+        renameChatBtn.classList.add('hidden');
+        deleteChatBtn.classList.add('hidden');
+        return;
+      }
+      chatTitle.textContent = chat.title || 'Chat';
+      chatMeta.textContent = `${chat.messages.length} messages • ${new Date(chat.updatedAt).toLocaleString()}`;
+      renameChatBtn.classList.remove('hidden');
+      deleteChatBtn.classList.remove('hidden');
+
+      chat.messages.forEach(m => {
+        appendMessageDom(m.role, m.content);
+      });
+      // scroll to bottom
+      setTimeout(()=> { try { messagesScroll.scrollTop = messagesScroll.scrollHeight; } catch(e){} }, 60);
+    }
+
+    /* ---------- Append message DOM ---------- */
+    function appendMessageDom(role, content){
+      const tpl = role === 'user' ? userMsgTpl : aiMsgTpl;
+      const node = tpl.content.cloneNode(true);
+      const wrapper = node.querySelector('.msg-bubble');
+      const contentEl = node.querySelector('.msg-content');
+      // render markdown safely if marked exists
+      try {
+        if(window.marked) {
+          contentEl.innerHTML = marked.parse(content || '');
+        } else {
+          contentEl.textContent = content;
         }
-    </script>
+      } catch(e){
+        contentEl.textContent = content;
+      }
+      const copyBtn = node.querySelector('.copyBtn');
+      if(copyBtn){
+        copyBtn.addEventListener('click', ()=> {
+          try {
+            navigator.clipboard.writeText(content || '');
+            copyBtn.textContent = 'Copied';
+            setTimeout(()=> copyBtn.textContent = 'Copy', 1000);
+          } catch(e){ copyBtn.textContent = 'Err'; }
+        });
+      }
+      messagesList.appendChild(node);
+      // ensure visible
+      setTimeout(()=> { try { messagesScroll.scrollTop = messagesScroll.scrollHeight; } catch(e){} }, 20);
+    }
+
+    /* ---------- Typing & Streaming ---------- */
+    // We'll display AI streaming by appending to the last AI bubble's content incrementally.
+    function startStreamingPlaceholder(){
+      // create an AI bubble with empty content
+      const tpl = aiMsgTpl.content.cloneNode(true);
+      const contentEl = tpl.querySelector('.ai-content');
+      contentEl.innerHTML = '<em>…</em>';
+      messagesList.appendChild(tpl);
+      setTimeout(()=> { try { messagesScroll.scrollTop = messagesScroll.scrollHeight; } catch(e){} }, 10);
+      return messagesList.querySelector('.ai-content:last-child');
+    }
+
+    function updateLastAIBubble(el, text){
+      try {
+        if(!el) return;
+        if(window.marked) el.innerHTML = marked.parse(text);
+        else el.textContent = text;
+        messagesScroll.scrollTop = messagesScroll.scrollHeight;
+      } catch(e){ /* silent */ }
+    }
+
+    function removeLastAIBubbleIfEmpty(){
+      const last = messagesList.querySelector('.ai-content:last-child');
+      if(last && last.textContent.trim() === '…') {
+        const parent = last.closest('.flex');
+        if(parent) parent.remove();
+      }
+    }
+
+    /* ---------- API / Streaming implementation ---------- */
+    async function callOpenRouterStream(chat) {
+      // defensive
+      if(!chat) throw new Error('No active chat to send');
+
+      const endpoint = (state.settings.endpoint || 'https://openrouter.ai/api/v1/chat/completions').trim();
+      const apiKey = (state.settings.apiKey || '').trim();
+      const model = (state.settings.model || '').trim();
+
+      if(!apiKey || !model) {
+        throw new Error('Missing API key or model in Settings.');
+      }
+
+      // Build messages for API: include system prompt (chat.system or global)
+      const systemPrompt = chat.system || state.settings.globalSystem || '';
+      const msgs = [];
+      if(systemPrompt) msgs.push({ role: 'system', content: systemPrompt });
+      // include previous messages
+      chat.messages.forEach(m => {
+        const role = (m.role === 'assistant') ? 'assistant' : (m.role === 'user' ? 'user' : m.role);
+        msgs.push({ role, content: m.content });
+      });
+
+      // fetch streaming response using readable stream
+      const body = {
+        model: model,
+        messages: msgs,
+        // recommended for token streaming at times
+        stream: true
+      };
+
+      // Abort previous if any
+      if(state.streamingController){
+        try { state.streamingController.abort(); } catch(e){}
+        state.streamingController = null;
+      }
+      state.streamingController = new AbortController();
+      const signal = state.streamingController.signal;
+
+      // create placeholder bubble to update
+      const aiContentEl = startStreamingPlaceholder();
+
+      try {
+        const res = await fetch(endpoint, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + apiKey
+          },
+          body: JSON.stringify(body),
+          signal
+        });
+
+        if(!res.ok){
+          const txt = await res.text().catch(()=>'<no body>');
+          throw new Error('API error: ' + res.status + ' ' + res.statusText + '\\n' + txt);
+        }
+
+        if(!res.body) {
+          // no stream available — fallback to json full response
+          const data = await res.json();
+          // try to extract assistant message
+          let assistantText = '';
+          if(data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) {
+            assistantText = data.choices[0].message.content;
+          } else if(data.output && data.output[0] && data.output[0].content) {
+            assistantText = data.output[0].content;
+          } else if(typeof data.choices?.[0]?.text === 'string') {
+            assistantText = data.choices[0].text;
+          } else {
+            assistantText = JSON.stringify(data, null, 2);
+          }
+          updateLastAIBubble(aiContentEl, assistantText);
+          addMessageToChatAndSave(chat.id, 'assistant', assistantText);
+          return assistantText;
+        }
+
+        // Read the stream (token by token or chunk)
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder('utf-8');
+        let done = false;
+        let accumulated = '';
+
+        while(!done){
+          const result = await reader.read();
+          done = result.done;
+          const chunk = result.value ? decoder.decode(result.value, { stream: true }) : '';
+          if(chunk){
+            // OpenRouter may use SSE-ish or JSON lines. We'll attempt to find JSON snippets.
+            // Strategy: accumulate, split by newlines, parse any JSON-looking fragments.
+            accumulated += chunk;
+
+            // common streaming formats:
+            // 1) data: {"delta":{"content":"..."}}
+            // 2) JSON chunks directly
+            // We'll use a regex to extract content fields.
+            // Try to extract `"delta":{"content":"..."}`
+            let parsedPiece = null;
+            // attempt simple JSON extraction: find all {...} in accumulated
+            const jsonMatches = Array.from(accumulated.matchAll(/\\{[^}]*\\}/g)).map(m=>m[0]);
+            // attempt parse last few matches
+            for(const jm of jsonMatches.slice(-3)){
+              try {
+                const obj = JSON.parse(jm);
+                // OpenRouter/Chat completions: obj.delta.content or obj.choices[0].delta.content or obj.choices[0].message.content
+                let token = '';
+                if(obj.delta && obj.delta.content) token = obj.delta.content;
+                else if(obj.choices && obj.choices[0] && obj.choices[0].delta && obj.choices[0].delta.content) token = obj.choices[0].delta.content;
+                else if(obj.choices && obj.choices[0] && obj.choices[0].message && obj.choices[0].message.content) token = obj.choices[0].message.content;
+                if(token !== '') {
+                  parsedPiece = token;
+                } else if(obj.text) {
+                  parsedPiece = obj.text;
+                }
+              } catch(e){ /* ignore parse errors */ }
+            }
+
+            // Also some streams send "data: [JSON]\n\n" lines. Let's extract data: lines
+            const dataLines = accumulated.split(/\\n/).filter(l => l.trim().startsWith('data:'));
+            if(dataLines.length){
+              const last = dataLines[dataLines.length - 1].replace(/^data:\\s*/, '').trim();
+              // sometimes last is [DONE]
+              if(last !== '[DONE]') {
+                try {
+                  const j = JSON.parse(last);
+                  // same extraction
+                  if(j.delta && j.delta.content) parsedPiece = j.delta.content;
+                  else if(j.choices && j.choices[0] && j.choices[0].delta && j.choices[0].delta.content) parsedPiece = j.choices[0].delta.content;
+                  else if(j.choices && j.choices[0] && j.choices[0].message && j.choices[0].message.content) parsedPiece = j.choices[0].message.content;
+                  else if(j.text) parsedPiece = j.text;
+                } catch(e){}
+              } else {
+                // end marker; set done true next iteration
+              }
+            }
+
+            if(parsedPiece !== null){
+              accumulated = ''; // reset to avoid reprocessing
+              // append to accumulated text and update UI
+              // To provide letter-by-letter feel, we will update in small batches
+              // but updateLastAIBubble will render whole content so far
+              const prev = aiContentEl.__u_text || '';
+              const newText = prev + parsedPiece;
+              aiContentEl.__u_text = newText;
+              // simple letter-by-letter reveal: we can chunk by characters if desired.
+              updateLastAIBubble(aiContentEl, newText);
+            } else {
+              // if no JSON token found, fallback to append raw chunk
+              const rawPrev = aiContentEl.__u_text || '';
+              aiContentEl.__u_text = rawPrev + chunk;
+              updateLastAIBubble(aiContentEl, aiContentEl.__u_text);
+            }
+          }
+        } // end while
+
+        // stream finished
+        const finalText = aiContentEl.__u_text || '';
+        if(finalText.trim() === ''){
+          updateLastAIBubble(aiContentEl, '[No content returned]');
+        }
+        addMessageToChatAndSave(chat.id, 'assistant', finalText);
+        state.streamingController = null;
+        return finalText;
+
+      } catch(err){
+        state.streamingController = null;
+        // display error in the AI bubble
+        updateLastAIBubble(aiContentEl, 'Network / request failed: ' + (err && err.message ? err.message : String(err)));
+        addMessageToChatAndSave(chat.id, 'assistant', 'Network / request failed: ' + (err && err.message ? err.message : String(err)));
+        throw err;
+      }
+    }
+
+    /* ---------- Helpers to add and save messages ---------- */
+    function addMessageToChatAndSave(chatId, role, content){
+      addMessage(chatId, role === 'assistant' ? 'assistant' : 'user', content);
+      saveState();
+    }
+
+    /* ---------- Event Handlers ---------- */
+    newChatBtn.addEventListener('click', ()=> createChat('New chat'));
+
+    searchInput.addEventListener('input', (e)=> renderSidebar(e.target.value.trim().toLowerCase()));
+
+    exportBtn.addEventListener('click', ()=>{
+      try {
+        const payload = { chats: state.chats, settings: state.settings, exportedAt: nowISO() };
+        const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = 'uai_chats.json';
+        document.body.appendChild(a); a.click(); a.remove();
+        URL.revokeObjectURL(url);
+      } catch(e){ alert('Export failed'); }
+    });
+
+    importFile.addEventListener('change', async (ev)=>{
+      const f = ev.target.files[0];
+      if(!f) return;
+      try {
+        const txt = await f.text();
+        const data = JSON.parse(txt);
+        if(Array.isArray(data.chats)){
+          state.chats = data.chats.concat(state.chats || []);
+          if(data.settings) state.settings = Object.assign(state.settings, data.settings);
+          saveState();
+          renderSidebar();
+          renderActiveChat();
+          alert('Imported');
+        } else alert('Invalid import file');
+      } catch(e){ alert('Import failed: ' + (e.message || e)); }
+      importFile.value = '';
+    });
+
+    clearAllBtn.addEventListener('click', ()=>{
+      if(!confirm('Delete all chats and settings from this browser?')) return;
+      state.chats = []; state.settings = { apiKey:'', model:'deepseek/deepseek-r1:free', endpoint:'https://openrouter.ai/api/v1/chat/completions', globalSystem:'' };
+      state.activeId = null;
+      saveState();
+      renderSidebar();
+      renderActiveChat();
+    });
+
+    settingsBtn.addEventListener('click', ()=>{
+      // populate modal
+      apiKeyInput.value = state.settings.apiKey || '';
+      modelInput.value = state.settings.model || '';
+      customEndpointInput.value = state.settings.endpoint || '';
+      globalSystemInput.value = state.settings.globalSystem || '';
+      modal.classList.remove('hidden'); modal.classList.add('flex');
+    });
+    closeModal.addEventListener('click', ()=> { modal.classList.add('hidden'); modal.classList.remove('flex'); });
+
+    saveSettingsBtn.addEventListener('click', ()=>{
+      state.settings.apiKey = apiKeyInput.value.trim();
+      state.settings.model = modelInput.value.trim() || 'deepseek/deepseek-r1:free';
+      state.settings.endpoint = customEndpointInput.value.trim() || 'https://openrouter.ai/api/v1/chat/completions';
+      state.settings.globalSystem = globalSystemInput.value || '';
+      saveState();
+      renderSidebar();
+      modal.classList.add('hidden'); modal.classList.remove('flex');
+      alert('Settings saved locally.');
+    });
+
+    clearSettingsBtn.addEventListener('click', ()=>{
+      if(!confirm('Clear saved API key and model?')) return;
+      state.settings.apiKey = '';
+      state.settings.model = 'deepseek/deepseek-r1:free';
+      state.settings.endpoint = 'https://openrouter.ai/api/v1/chat/completions';
+      state.settings.globalSystem = '';
+      saveState();
+      apiKeyInput.value = ''; modelInput.value = ''; customEndpointInput.value = ''; globalSystemInput.value = '';
+    });
+
+    // mobile sidebar toggle
+    hamburger && hamburger.addEventListener('click', ()=> {
+      if(sidebar.classList.contains('hidden')) sidebar.classList.remove('hidden');
+      else sidebar.classList.remove('hidden'); // ensure visible
+      // on mobile, show as overlay by toggling a class or just ensure it's visible (sidebar already full width on small screens)
+    });
+    mobileCloseSidebar && mobileCloseSidebar.addEventListener('click', ()=> sidebar.classList.add('hidden'));
+
+    // rename/delete
+    renameChatBtn.addEventListener('click', ()=>{
+      const chat = state.chats.find(c=>c.id===state.activeId);
+      if(!chat) return;
+      const newTitle = prompt('Rename chat', chat.title);
+      if(newTitle) renameChat(chat.id, newTitle);
+    });
+    deleteChatBtn.addEventListener('click', ()=>{
+      if(!confirm('Delete this chat?')) return;
+      deleteChat(state.activeId);
+    });
+
+    // send / input handlers
+    sendBtn.addEventListener('click', handleSend);
+    mockBtn.addEventListener('click', handleMock);
+
+    inputBox.addEventListener('keydown', (ev)=>{
+      // keep input bar visible: do not prevent mobile keyboard
+      if(ev.key === 'Enter' && !ev.shiftKey){
+        ev.preventDefault();
+        handleSend();
+      }
+    });
+
+    async function handleMock(){
+      if(!state.activeId) createChat('New chat');
+      const txt = inputBox.value.trim();
+      if(!txt) return;
+      addMessageToChatAndSave(state.activeId, 'user', txt);
+      appendMessageDom('user', txt);
+      inputBox.value = '';
+      // mock reply
+      const reply = 'Mock reply: set your OpenRouter API key + model in Settings to fetch real responses.';
+      // letter-by-letter effect
+      let reveal = '';
+      appendMessageDom('assistant', ''); // placeholder
+      const lastAI = messagesList.querySelector('.ai-content:last-child');
+      for(let i=0;i<reply.length;i++){
+        reveal += reply[i];
+        updateLastAIBubble(lastAI, reveal);
+        await new Promise(r=>setTimeout(r, 8));
+      }
+      addMessageToChatAndSave(state.activeId, 'assistant', reply);
+    }
+
+    async function handleSend(){
+      const text = inputBox.value.trim();
+      if(!text) return;
+      if(!state.activeId) createChat('New chat');
+      const chat = state.chats.find(c=>c.id===state.activeId);
+      if(!chat) return;
+      // push user message
+      addMessageToChatAndSave(chat.id, 'user', text);
+      appendMessageDom('user', text);
+      inputBox.value = '';
+
+      // if no API key or no model, show hint
+      if(!state.settings.apiKey || !state.settings.model){
+        // local helpful response
+        const hint = 'No API key or model configured. Open Settings and add your OpenRouter API key and model to get real responses.';
+        appendMessageDom('assistant', hint);
+        addMessageToChatAndSave(chat.id, 'assistant', hint);
+        return;
+      }
+
+      // Attempt streaming call
+      try {
+        await callOpenRouterStream(chat);
+      } catch(err){
+        console.warn('Stream failed', err);
+      }
+    }
+
+    /* ---------- Initialization ---------- */
+    function init(){
+      loadState();
+      // apply theme
+      applyTheme();
+
+      // ensure sensible defaults
+      if(!state.settings.endpoint) state.settings.endpoint = 'https://openrouter.ai/api/v1/chat/completions';
+      if(!state.settings.model) state.settings.model = 'deepseek/deepseek-r1:free';
+
+      // ensure at least one chat
+      if(!state.chats || !state.chats.length){
+        createChat('Getting started', { messages: [{ role:'assistant', content: 'Welcome! Create a new chat and add your OpenRouter API key in Settings to get real streamed responses.' }] });
+      } else {
+        // if activeId missing, pick first
+        if(!state.activeId) state.activeId = state.chats[0].id;
+      }
+
+      renderSidebar();
+      renderActiveChat();
+
+      // wire up export/import UI already done; show model in display
+      modelDisplay.textContent = state.settings.model || 'deepseek/deepseek-r1:free';
+
+      // hide loader once ready
+      hideLoader();
+    }
+
+    // expose some helpers for debugging (optional)
+    window.UAI = {
+      state, createChat, deleteChat, renameChat, setActive, saveState, loadState
+    };
+
+    // boot
+    try {
+      init();
+    } catch(e){
+      console.error('Initialization failed', e);
+      alert('App failed to initialize: ' + (e && e.message ? e.message : e));
+      hideLoader();
+    }
+
+    /* ---------- small accessibility: focus input on active chat change ---------- */
+    const observer = new MutationObserver(()=> {
+      try { inputBox.focus(); } catch(e){}
+    });
+    observer.observe(messagesList, { childList:true, subtree:true });
+
+  })();
+  </script>
 </body>
 </html>
