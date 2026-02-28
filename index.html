@@ -1,231 +1,220 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-  <title>VishnuLM - Multimodal</title>
-  <script src="https://cdn.tailwindcss.com"></script>
-  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-  <style>
-    html, body { height: 100%; }
-    #chatContainer pre { background: #111; color: #fff; padding: 12px; border-radius: 8px; overflow-x: auto; }
-    #settingsModal { z-index: 100; }
-    /* ফাইল প্রিভিউ স্টাইল */
-    .file-preview { border: 1px dashed #3b82f6; padding: 5px; border-radius: 5px; margin-top: 5px; font-size: 12px; }
-  </style>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>X-LLM</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script>
+        tailwind.config = {
+            content: [],
+            theme: { extend: { fontFamily: { logo: ['Space Grotesk', 'sans-serif'] } } }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600&display=swap');
+        body { font-family: 'Inter', system-ui, sans-serif; }
+        .logo-font { font-family: 'Space Grotesk', sans-serif; }
+        .chat-container::-webkit-scrollbar { width: 6px; }
+        .chat-container::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 9999px; }
+        .message { max-width: 78%; word-wrap: break-word; }
+        .message pre { background: #111; padding: 10px; border-radius: 8px; overflow-x: auto; margin: 10px 0; }
+    </style>
 </head>
-<body class="min-h-screen bg-gray-100 dark:bg-gray-900 transition-colors duration-200">
+<body class="bg-zinc-950 text-zinc-100 overflow-hidden" onload="init()">
+    <div class="flex h-screen">
+        <div class="w-72 bg-zinc-900 border-r border-zinc-800 flex flex-col">
+            <div class="p-6 border-b border-zinc-800 flex items-center gap-3">
+                <div class="w-10 h-10 bg-gradient-to-br from-violet-600 to-fuchsia-600 rounded-3xl flex items-center justify-center text-3xl font-bold logo-font shadow-lg">X</div>
+                <div class="logo-font text-4xl font-semibold tracking-tighter">X-LLM</div>
+            </div>
 
-<div id="loading" class="fixed inset-0 flex items-center justify-center bg-white dark:bg-gray-900 z-50">
-  <div class="text-lg font-bold text-blue-600 animate-pulse text-center">VishnuLM<br><span class="text-sm font-normal text-gray-500">Multimodal Loading...</span></div>
-</div>
+            <div class="px-4 pt-6">
+                <button onclick="newChat()" class="w-full bg-white hover:bg-zinc-100 text-zinc-900 font-semibold py-4 rounded-3xl flex items-center justify-center gap-3 transition-all">
+                    <i class="fa-solid fa-plus"></i> NEW CHAT
+                </button>
+            </div>
 
-<div id="app" class="hidden flex h-screen overflow-hidden">
-  <aside id="sidebar" class="fixed md:static z-40 w-72 h-full bg-white dark:bg-gray-800 border-r border-gray-200 dark:border-gray-700 flex flex-col transform -translate-x-full md:translate-x-0 transition-transform duration-300">
-    <div class="p-4 flex justify-between items-center border-b dark:border-gray-700"><span class="font-bold text-blue-600">VishnuLM</span><button id="closeSidebar" class="md:hidden text-xl">&times;</button></div>
-    <button id="newChatBtn" class="m-4 bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition">+ New Chat</button>
-    <div id="chatList" class="flex-1 overflow-y-auto px-2 space-y-1"></div>
-    <div class="p-3 border-t dark:border-gray-700 space-y-2">
-      <button id="settingsBtn" class="w-full bg-gray-200 dark:bg-gray-700 py-2 rounded">Settings</button>
-      <button id="darkToggle" class="w-full bg-gray-200 dark:bg-gray-700 py-2 rounded">Toggle Dark Mode</button>
+            <div id="history" class="flex-1 overflow-y-auto px-3 py-6 space-y-1 chat-container"></div>
+
+            <div class="border-t border-zinc-800 p-4 space-y-1">
+                <button onclick="switchTab(0)" class="w-full flex items-center gap-3 px-5 py-3 hover:bg-zinc-800 rounded-3xl text-left">
+                    <i class="fa-solid fa-comments"></i><span class="font-medium">Chat</span>
+                </button>
+                <button onclick="showSettings()" class="w-full flex items-center gap-3 px-5 py-3 hover:bg-zinc-800 rounded-3xl text-left text-zinc-400">
+                    <i class="fa-solid fa-gear"></i><span class="font-medium">Settings</span>
+                </button>
+            </div>
+        </div>
+
+        <div class="flex-1 flex flex-col">
+            <header class="h-16 border-b border-zinc-800 bg-zinc-900 px-8 flex items-center justify-between">
+                <div class="font-semibold text-xl">X-LLM Chat</div>
+                <div class="flex gap-4 items-center">
+                    <span id="model-badge" class="text-[10px] bg-violet-600/20 text-violet-400 px-3 py-1 rounded-full border border-violet-600/30">Connecting...</span>
+                </div>
+            </header>
+
+            <div class="flex-1 overflow-hidden relative" id="content">
+                <div id="tab-0" class="h-full flex flex-col">
+                    <div id="messages" class="flex-1 overflow-y-auto p-8 space-y-10 chat-container"></div>
+                    
+                    <div class="p-8 border-t border-zinc-800 bg-zinc-900">
+                        <div class="max-w-4xl mx-auto">
+                            <div class="flex items-end gap-3 bg-zinc-800 rounded-3xl p-2 border border-zinc-700 focus-within:border-violet-500 transition">
+                                <textarea id="prompt-input" rows="1" class="flex-1 bg-transparent px-6 py-4 resize-none outline-none text-lg max-h-52 placeholder-zinc-500" placeholder="Ask X-LLM anything..."></textarea>
+                                <button onclick="handleSend()" class="h-12 w-12 bg-violet-600 hover:bg-violet-500 transition rounded-2xl flex items-center justify-center mb-1 mr-1">
+                                    <i class="fa-solid fa-paper-plane"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
-  </aside>
 
-  <div class="flex-1 flex flex-col w-full h-full relative">
-    <header class="flex items-center justify-between p-3 border-b dark:border-gray-700 bg-white dark:bg-gray-800">
-      <button id="openSidebar" class="md:hidden text-xl">&#9776;</button>
-      <h1 class="font-bold text-xl text-blue-600 flex-1 text-center">VishnuLM</h1>
-      <div class="w-6"></div>
-    </header>
-
-    <main id="chatContainer" class="flex-1 overflow-y-auto p-4 space-y-4 pb-48"></main>
-
-    <input type="file" id="fileInput" class="hidden" accept="image/*,video/*,audio/*,.pdf,.doc,.txt">
-
-    <div class="absolute bottom-0 left-0 right-0 bg-white dark:bg-gray-800 border-t dark:border-gray-700 p-3 shadow-lg">
-      <div id="attachmentPreview" class="hidden max-w-4xl mx-auto mb-2 p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg flex justify-between items-center">
-        <span id="fileNameDisplay" class="text-xs truncate italic"></span>
-        <button id="removeFile" class="text-red-500 font-bold px-2">&times;</button>
-      </div>
-      <div class="flex gap-2 max-w-4xl mx-auto items-center">
-        <button id="attachBtn" class="bg-gray-200 dark:bg-gray-700 p-2 rounded-lg hover:bg-gray-300 text-xl" title="Attach Image/Audio/Video">📎</button>
-        <textarea id="messageInput" class="flex-1 resize-none border rounded-lg p-2 dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none" rows="1" placeholder="Type message or attach files..."></textarea>
-        <button id="sendBtn" class="bg-blue-600 text-white px-4 py-2 rounded-lg font-bold hover:bg-blue-700 transition">Send</button>
-      </div>
+    <div id="settings-modal" class="hidden fixed inset-0 bg-black/70 z-50 flex items-center justify-center">
+        <div class="bg-zinc-900 rounded-3xl w-full max-w-md mx-4 overflow-hidden border border-zinc-800">
+            <div class="px-8 py-6 border-b border-zinc-800 flex items-center justify-between">
+                <div class="text-2xl font-semibold">Settings</div>
+                <button onclick="hideSettings()" class="text-zinc-400 hover:text-white">✕</button>
+            </div>
+            <div class="p-8 space-y-6">
+                <div>
+                    <label class="block text-xs text-zinc-400 mb-2">API KEY (OpenRouter)</label>
+                    <input id="api-key" type="password" class="w-full bg-zinc-800 border border-zinc-700 rounded-2xl px-5 py-4 outline-none focus:border-violet-500">
+                </div>
+                <div>
+                    <label class="block text-xs text-zinc-400 mb-2">MODEL NAME</label>
+                    <input id="model-name" type="text" value="google/gemini-pro" class="w-full bg-zinc-800 border border-zinc-700 rounded-2xl px-5 py-4 outline-none">
+                </div>
+                <button onclick="saveSettings()" class="w-full py-4 bg-white text-zinc-950 font-semibold rounded-3xl hover:bg-zinc-100 transition">SAVE SETTINGS</button>
+            </div>
+        </div>
     </div>
-  </div>
-</div>
 
-<div id="settingsModal" class="fixed inset-0 bg-black bg-opacity-60 hidden flex items-center justify-center p-4">
-  <div class="bg-white dark:bg-gray-800 p-6 rounded-xl w-full max-w-md space-y-4 shadow-2xl border dark:border-gray-700">
-    <h2 class="text-xl font-bold dark:text-white text-center">VishnuLM Settings</h2>
-    <div><label class="text-sm dark:text-gray-400 font-semibold uppercase">OpenRouter API Key</label><input id="apiKeyInput" type="password" placeholder="Enter key" class="w-full border p-2 rounded mt-1 dark:bg-gray-700 dark:text-white outline-none"></div>
-    <div><label class="text-sm dark:text-gray-400 font-semibold uppercase">Model Engine</label><input id="modelInput" type="text" placeholder="Model name" class="w-full border p-2 rounded mt-1 dark:bg-gray-700 dark:text-white outline-none"></div>
-    <div><label class="text-sm dark:text-gray-400 font-semibold uppercase">Core Persona</label><textarea id="systemPromptInput" placeholder="Define how VishnuLM behaves..." class="w-full border p-2 rounded mt-1 dark:bg-gray-700 dark:text-white h-24 outline-none"></textarea></div>
-    <div class="flex justify-end gap-2"><button id="closeSettings" class="bg-gray-400 text-white px-4 py-2 rounded-lg">Cancel</button><button id="saveSettings" class="bg-blue-600 text-white px-6 py-2 rounded-lg font-bold">Save</button></div>
-  </div>
-</div>
+    <script>
+        let API_KEY = localStorage.getItem('xllm_key') || '';
+        let MODEL = localStorage.getItem('xllm_model') || 'google/gemini-2.0-flash-lite:preview:free';
+        let chatHistory = [];
 
-<script>
-(function(){
-let chats = JSON.parse(localStorage.getItem("chats") || "[]");
-let currentChatId = localStorage.getItem("currentChatId") || null;
-let apiKey = localStorage.getItem("apiKey") || "";
-let model = localStorage.getItem("model") || "deepseek/deepseek-r1:free";
-let darkMode = localStorage.getItem("darkMode") === "true";
-let selectedFile = null;
+        function init() {
+            document.getElementById('api-key').value = API_KEY;
+            document.getElementById('model-name').value = MODEL;
+            updateBadge();
+            renderMessages();
+        }
 
-const app = document.getElementById("app");
-const loading = document.getElementById("loading");
-if (darkMode) document.documentElement.classList.add("dark");
+        function updateBadge() {
+            document.getElementById('model-badge').innerText = MODEL.split('/')[1] || MODEL;
+        }
 
-function saveState(){
-  localStorage.setItem("chats", JSON.stringify(chats));
-  localStorage.setItem("currentChatId", currentChatId);
-  localStorage.setItem("apiKey", apiKey);
-  localStorage.setItem("model", model);
-  localStorage.setItem("darkMode", darkMode);
-}
+        function showSettings() { document.getElementById('settings-modal').classList.remove('hidden'); }
+        function hideSettings() { document.getElementById('settings-modal').classList.add('hidden'); }
+        
+        function saveSettings() {
+            API_KEY = document.getElementById('api-key').value.trim();
+            MODEL = document.getElementById('model-name').value.trim();
+            localStorage.setItem('xllm_key', API_KEY);
+            localStorage.setItem('xllm_model', MODEL);
+            updateBadge();
+            hideSettings();
+        }
 
-// Attachment Logic
-document.getElementById("attachBtn").onclick = () => document.getElementById("fileInput").click();
-document.getElementById("fileInput").onchange = (e) => {
-  selectedFile = e.target.files[0];
-  if(selectedFile) {
-    document.getElementById("attachmentPreview").classList.remove("hidden");
-    document.getElementById("fileNameDisplay").innerText = "📎 Selected: " + selectedFile.name;
-  }
-};
-document.getElementById("removeFile").onclick = () => {
-  selectedFile = null;
-  document.getElementById("fileInput").value = "";
-  document.getElementById("attachmentPreview").classList.add("hidden");
-};
+        function newChat() {
+            chatHistory = [];
+            renderMessages();
+        }
 
-function createChat(){
-  const chat = { id: Date.now().toString(), title: "New Session", messages: [], systemPrompt: "You are VishnuLM, a high-performance AI assistant." };
-  chats.unshift(chat);
-  currentChatId = chat.id;
-  saveState();
-  renderChats();
-  renderMessages();
-}
+        function renderMessages() {
+            const container = document.getElementById('messages');
+            if (chatHistory.length === 0) {
+                container.innerHTML = `
+                <div class="flex flex-col items-center justify-center h-full text-center py-20">
+                    <div class="w-20 h-20 bg-gradient-to-br from-violet-500 to-fuchsia-500 rounded-3xl flex items-center justify-center text-5xl mb-6 shadow-xl">X</div>
+                    <h1 class="text-4xl font-semibold logo-font tracking-tighter">X-LLM Engine Ready</h1>
+                    <p class="text-zinc-500 mt-2">Start a conversation to begin</p>
+                </div>`;
+                return;
+            }
+            container.innerHTML = '';
+            chatHistory.forEach(msg => appendToUI(msg.role, msg.content));
+        }
 
-// renderChats, renderMessages, deleteChat, renameChat logic stays SAME...
-function deleteChat(id, e){ e.stopPropagation(); if(!confirm("Erase this?")) return; chats = chats.filter(c => c.id !== id); if(currentChatId === id) currentChatId = chats.length > 0 ? chats[0].id : null; if(!currentChatId) createChat(); saveState(); renderChats(); renderMessages(); }
-function renameChat(id, e){ e.stopPropagation(); const newName = prompt("Rename:"); if(!newName) return; const chat = chats.find(c => c.id === id); if(chat) chat.title = newName; saveState(); renderChats(); }
+        function appendToUI(role, content) {
+            const container = document.getElementById('messages');
+            const div = document.createElement('div');
+            div.className = `flex ${role === 'user' ? 'justify-end' : 'justify-start'} gap-4`;
+            
+            const bubbleHtml = role === 'user' 
+                ? `<div class="bg-violet-600 px-6 py-4 rounded-3xl rounded-tr-none message text-white shadow-lg">${content}</div>`
+                : `<div class="w-9 h-9 bg-gradient-to-br from-violet-500 to-fuchsia-500 rounded-2xl flex-shrink-0 flex items-center justify-center text-xl shadow-lg">X</div>
+                   <div class="bg-zinc-800 px-6 py-4 rounded-3xl rounded-tl-none message border border-zinc-700/50">${marked.parse(content)}</div>`;
+            
+            div.innerHTML = bubbleHtml;
+            container.appendChild(div);
+            container.scrollTop = container.scrollHeight;
+        }
 
-function renderChats(){
-  const list = document.getElementById("chatList");
-  list.innerHTML = "";
-  chats.forEach(chat=>{
-    const div = document.createElement("div");
-    div.className = `p-2 rounded cursor-pointer transition flex justify-between items-center group ${chat.id === currentChatId ? 'bg-blue-100 dark:bg-blue-900/40 text-blue-600' : 'hover:bg-gray-200 dark:hover:bg-gray-700'}`;
-    div.innerHTML = `<span class="truncate pr-2">${chat.title}</span><div class="flex gap-2 opacity-0 group-hover:opacity-100 transition"><button class="rename-btn text-xs">✏️</button><button class="delete-btn text-xs">🗑</button></div>`;
-    div.onclick = ()=>{ currentChatId = chat.id; saveState(); renderChats(); renderMessages(); };
-    div.querySelector('.delete-btn').onclick = (e) => deleteChat(chat.id, e);
-    div.querySelector('.rename-btn').onclick = (e) => renameChat(chat.id, e);
-    list.appendChild(div);
-  });
-}
+        async function handleSend() {
+            const input = document.getElementById('prompt-input');
+            const text = input.value.trim();
+            if (!text) return;
+            if (!API_KEY) return showSettings();
 
-function renderMessages(){
-  const container = document.getElementById("chatContainer");
-  container.innerHTML = "";
-  const chat = chats.find(c => c.id === currentChatId);
-  if (!chat) return;
-  chat.messages.forEach(msg=>{
-    const div = document.createElement("div");
-    div.className = msg.role === "user" ? "text-right" : "text-left";
-    const bubble = document.createElement("div");
-    bubble.className = msg.role === "user" ? "inline-block bg-blue-600 text-white p-3 rounded-lg max-w-[85%] text-left shadow-sm" : "inline-block bg-gray-200 dark:bg-gray-700 dark:text-white p-3 rounded-lg max-w-[85%] text-left shadow-sm";
-    bubble.innerHTML = marked.parse(msg.content);
-    div.appendChild(bubble);
-    container.appendChild(div);
-  });
-  container.scrollTop = container.scrollHeight;
-}
+            // User Message
+            chatHistory.push({ role: 'user', content: text });
+            input.value = '';
+            renderMessages();
 
-async function streamResponse(messages){
-  const chat = chats.find(c => c.id === currentChatId);
-  const container = document.getElementById("chatContainer");
-  const aiDiv = document.createElement("div");
-  aiDiv.className = "text-left";
-  const bubble = document.createElement("div");
-  bubble.className = "inline-block bg-gray-200 dark:bg-gray-700 dark:text-white p-3 rounded-lg max-w-[85%]";
-  bubble.innerHTML = "VishnuLM is analyzing...";
-  aiDiv.appendChild(bubble);
-  container.appendChild(aiDiv);
+            // Thinking Placeholder
+            const thinkingId = 'thinking-' + Date.now();
+            const container = document.getElementById('messages');
+            const thinkDiv = document.createElement('div');
+            thinkDiv.id = thinkingId;
+            thinkDiv.className = 'flex justify-start gap-4';
+            thinkDiv.innerHTML = `<div class="w-9 h-9 bg-zinc-800 rounded-2xl flex items-center justify-center text-xl animate-pulse text-zinc-500">X</div>
+                                  <div class="bg-zinc-900 px-6 py-4 rounded-3xl rounded-tl-none text-zinc-500 italic">Thinking...</div>`;
+            container.appendChild(thinkDiv);
+            container.scrollTop = container.scrollHeight;
 
-  let fullText = "";
-  try {
-    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-      method:"POST",
-      headers:{ "Authorization":"Bearer "+apiKey, "Content-Type":"application/json" },
-      body: JSON.stringify({ model:model, messages:messages, stream:true })
-    });
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder("utf-8");
-    while(true){
-      const {done, value} = await reader.read();
-      if(done) break;
-      const chunk = decoder.decode(value);
-      const lines = chunk.split("\n").filter(l=>l.startsWith("data: "));
-      for(let line of lines){
-        const json = line.replace("data: ","").trim();
-        if(json === "[DONE]") break;
-        try{
-          const parsed = JSON.parse(json);
-          const token = parsed.choices?.[0]?.delta?.content;
-          if(token){ fullText += token; bubble.innerHTML = marked.parse(fullText); container.scrollTop = container.scrollHeight; }
-        }catch(e){}
-      }
-    }
-    chat.messages.push({role:"assistant", content:fullText});
-    saveState();
-  } catch(e) { bubble.innerHTML = "Connection failed."; }
-}
+            try {
+                const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+                    method: "POST",
+                    headers: {
+                        "Authorization": `Bearer ${API_KEY}`,
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        model: MODEL,
+                        messages: chatHistory
+                    })
+                });
 
-async function sendMessage(){
-  const input = document.getElementById("messageInput");
-  let text = input.value.trim();
-  if(!text && !selectedFile) return;
-  if(!apiKey) return alert("Configure API Key.");
+                const data = await response.json();
+                thinkDiv.remove();
 
-  // ফাইলের তথ্য টেক্সট এ যুক্ত করা
-  if(selectedFile) {
-    text += `\n\n[File Attached: ${selectedFile.name} (${selectedFile.type})]`;
-  }
+                if (data.choices && data.choices[0]) {
+                    const aiReply = data.choices[0].message.content;
+                    chatHistory.push({ role: 'assistant', content: aiReply });
+                    renderMessages();
+                } else {
+                    throw new Error("Invalid API Response");
+                }
+            } catch (error) {
+                thinkDiv.remove();
+                appendToUI('assistant', "⚠️ Error: Could not connect to API. Please check your settings and Key.");
+            }
+        }
 
-  const chat = chats.find(c => c.id === currentChatId);
-  chat.messages.push({role:"user", content:text});
-  
-  // রিসেট ইনপুট
-  input.value="";
-  selectedFile = null;
-  document.getElementById("fileInput").value = "";
-  document.getElementById("attachmentPreview").classList.add("hidden");
-
-  renderMessages();
-  saveState();
-  const msgs = chat.systemPrompt ? [{role:"system", content:chat.systemPrompt}, ...chat.messages] : [...chat.messages];
-  await streamResponse(msgs);
-}
-
-document.getElementById("sendBtn").onclick = sendMessage;
-document.getElementById("newChatBtn").onclick = createChat;
-document.getElementById("darkToggle").onclick = ()=>{ darkMode = !darkMode; document.documentElement.classList.toggle("dark"); saveState(); };
-document.getElementById("settingsBtn").onclick = ()=>{ document.getElementById("settingsModal").classList.remove("hidden"); document.getElementById("apiKeyInput").value = apiKey; document.getElementById("modelInput").value = model; const chat = chats.find(c => c.id === currentChatId); document.getElementById("systemPromptInput").value = chat ? chat.systemPrompt : ""; };
-document.getElementById("closeSettings").onclick = ()=> document.getElementById("settingsModal").classList.add("hidden");
-document.getElementById("saveSettings").onclick = ()=>{ apiKey = document.getElementById("apiKeyInput").value.trim(); model = document.getElementById("modelInput").value.trim(); const chat = chats.find(c => c.id === currentChatId); if(chat) chat.systemPrompt = document.getElementById("systemPromptInput").value; saveState(); document.getElementById("settingsModal").classList.add("hidden"); };
-document.getElementById("openSidebar").onclick = ()=> document.getElementById("sidebar").classList.remove("-translate-x-full");
-document.getElementById("closeSidebar").onclick = ()=> document.getElementById("sidebar").classList.add("-translate-x-full");
-
-if(chats.length === 0) createChat();
-renderChats(); renderMessages();
-app.classList.remove("hidden");
-loading.style.display = "none";
-})();
-</script>
+        // Auto-resize textarea
+        document.getElementById('prompt-input').addEventListener('input', function() {
+            this.style.height = 'auto';
+            this.style.height = (this.scrollHeight) + 'px';
+        });
+    </script>
 </body>
 </html>
