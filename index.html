@@ -1,199 +1,319 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>X-LLM | Pro Engine</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
-    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <script>
-        tailwind.config = {
-            content: [],
-            theme: { extend: { fontFamily: { logo: ['Space Grotesk', 'sans-serif'] } } }
-        }
-    </script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Space+Grotesk:wght@500;600&display=swap');
-        body { font-family: 'Inter', system-ui, sans-serif; overflow: hidden; }
-        .logo-font { font-family: 'Space Grotesk', sans-serif; }
-        .chat-container::-webkit-scrollbar { width: 4px; }
-        .chat-container::-webkit-scrollbar-thumb { background: #4b5563; border-radius: 9999px; }
-        .message { max-width: 85%; word-wrap: break-word; }
-        /* Mobile fixes */
-        @media (max-width: 768px) {
-            .sidebar-hidden { transform: translateX(-100%); position: absolute; }
-            .sidebar-visible { transform: translateX(0); position: absolute; z-index: 50; }
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>x-LLM - Multimodal AI</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.6.0/css/all.min.css">
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600&display=swap');
+    html, body { height: 100%; font-family: 'Inter', sans-serif; }
+    .logo-font { font-family: 'Space Grotesk', sans-serif; }
+    #chatContainer pre { background: #111; color: #fff; padding: 12px; border-radius: 8px; overflow-x: auto; margin: 10px 0; }
+    .message-bubble img { max-width: 200px; border-radius: 8px; margin-top: 8px; border: 1px solid #444; }
+    .loader { border: 3px solid #f3f3f3; border-top: 3px solid #7c3aed; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; display: inline-block; }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+  </style>
 </head>
-<body class="bg-zinc-950 text-zinc-100" onload="init()">
-    <div class="flex h-screen relative">
-        <div id="sidebar" class="w-72 bg-zinc-900 border-r border-zinc-800 flex flex-col transition-transform duration-300 sidebar-hidden md:translate-x-0 h-full">
-            <div class="p-6 border-b border-zinc-800 flex items-center justify-between">
-                <div class="flex items-center gap-3">
-                    <div class="w-10 h-10 bg-gradient-to-br from-violet-600 to-fuchsia-600 rounded-3xl flex items-center justify-center text-3xl font-bold logo-font shadow-lg">X</div>
-                    <div class="logo-font text-4xl font-semibold tracking-tighter">X-LLM</div>
-                </div>
-                <button onclick="toggleSidebar()" class="md:hidden text-2xl">&times;</button>
-            </div>
+<body class="bg-zinc-50 dark:bg-zinc-950 text-zinc-900 dark:text-zinc-100 transition-colors duration-200">
 
-            <div class="px-4 pt-6">
-                <button onclick="newChat()" class="w-full bg-white hover:bg-zinc-100 text-zinc-900 font-semibold py-4 rounded-3xl flex items-center justify-center gap-3 transition-all">
-                    <i class="fa-solid fa-plus"></i> NEW CHAT
-                </button>
-            </div>
+<div id="loading" class="fixed inset-0 flex items-center justify-center bg-zinc-950 z-[100]">
+  <div class="text-center">
+    <div class="w-16 h-16 bg-gradient-to-br from-violet-600 to-fuchsia-600 rounded-2xl flex items-center justify-center text-3xl font-bold logo-font text-white mx-auto shadow-2xl animate-bounce">X</div>
+    <div class="mt-4 text-xl font-bold logo-font text-violet-500">x-LLM Engine</div>
+  </div>
+</div>
 
-            <div id="history" class="flex-1 overflow-y-auto px-3 py-6 space-y-1 chat-container"></div>
-
-            <div class="border-t border-zinc-800 p-4 space-y-1">
-                <button onclick="switchTab(0)" class="w-full flex items-center gap-3 px-5 py-3 hover:bg-zinc-800 rounded-3xl text-left"><i class="fa-solid fa-comments"></i> Chat</button>
-                <button onclick="switchTab(1)" class="w-full flex items-center gap-3 px-5 py-3 hover:bg-zinc-800 rounded-3xl text-left"><i class="fa-solid fa-image"></i> Images</button>
-                <button onclick="showSettings()" class="w-full flex items-center gap-3 px-5 py-3 hover:bg-zinc-800 rounded-3xl text-left text-zinc-400"><i class="fa-solid fa-gear"></i> Settings</button>
-            </div>
-        </div>
-
-        <div class="flex-1 flex flex-col w-full min-w-0">
-            <header class="h-16 border-b border-zinc-800 bg-zinc-900 px-4 md:px-8 flex items-center justify-between">
-                <button onclick="toggleSidebar()" class="md:hidden text-zinc-400"><i class="fa-solid fa-bars text-xl"></i></button>
-                <div id="header-title" class="font-semibold text-xl">X-LLM Chat</div>
-                <div class="hidden md:flex items-center gap-4 text-sm">
-                    <div onclick="switchTab(0)" class="cursor-pointer px-6 py-2 rounded-3xl bg-zinc-800">Chat</div>
-                    <div onclick="switchTab(1)" class="cursor-pointer px-6 py-2 rounded-3xl hover:bg-zinc-800">Images</div>
-                </div>
-            </header>
-
-            <div id="content" class="flex-1 overflow-hidden relative">
-                <div id="tab-0" class="h-full flex flex-col">
-                    <div id="messages" class="flex-1 overflow-y-auto p-4 md:p-8 space-y-6 chat-container"></div>
-                    
-                    <div class="p-4 md:p-8 border-t border-zinc-800 bg-zinc-900">
-                        <div class="max-w-4xl mx-auto">
-                            <div class="flex items-end gap-2 bg-zinc-800 rounded-3xl p-2 border border-zinc-700">
-                                <button onclick="alert('Multimodal (Image Read) functionality is being linked!')" class="h-12 w-12 flex items-center justify-center text-zinc-400 hover:text-white"><i class="fa-solid fa-paperclip text-xl"></i></button>
-                                <textarea id="prompt-input" rows="1" class="flex-1 bg-transparent px-4 py-3 resize-none outline-none text-lg" placeholder="Ask X-LLM anything..."></textarea>
-                                <button onclick="sendMessage()" class="h-12 w-12 bg-violet-600 hover:bg-violet-500 rounded-2xl flex items-center justify-center transition">
-                                    <i class="fa-solid fa-paper-plane"></i>
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <div id="tab-1" class="h-full hidden p-8 overflow-y-auto">
-                    <div class="max-w-3xl mx-auto text-center">
-                        <h2 class="logo-font text-5xl font-bold mb-6">Image Studio</h2>
-                        <textarea id="image-prompt" class="w-full bg-zinc-800 border border-zinc-700 rounded-3xl p-6 outline-none mb-4" placeholder="Describe what you want to see..."></textarea>
-                        <button onclick="generateImage()" class="bg-white text-black px-12 py-4 rounded-3xl font-bold hover:scale-105 transition">GENERATE</button>
-                        <div id="image-grid" class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-8"></div>
-                    </div>
-                </div>
-            </div>
-        </div>
+<div id="app" class="hidden flex h-screen overflow-hidden">
+  <aside id="sidebar" class="fixed md:static z-40 w-72 h-full bg-white dark:bg-zinc-900 border-r border-zinc-200 dark:border-zinc-800 flex flex-col transform -translate-x-full md:translate-x-0 transition-transform duration-300">
+    <div class="p-6 flex items-center gap-3 border-b dark:border-zinc-800">
+      <div class="w-8 h-8 bg-violet-600 rounded-lg flex items-center justify-center font-bold text-white">X</div>
+      <span class="font-bold text-2xl logo-font tracking-tighter">x-LLM</span>
+      <button id="closeSidebar" class="md:hidden ml-auto text-xl">&times;</button>
     </div>
-
-    <div id="settings-modal" class="hidden fixed inset-0 bg-black/80 z-[100] flex items-center justify-center p-4">
-        <div class="bg-zinc-900 w-full max-w-md p-8 rounded-3xl border border-zinc-800">
-            <h3 class="text-2xl font-bold mb-6">Settings</h3>
-            <input id="api-key" type="password" placeholder="OpenRouter API Key" class="w-full bg-zinc-800 border border-zinc-700 rounded-2xl px-5 py-4 mb-4 outline-none">
-            <input id="model-name" type="text" value="google/gemini-2.0-flash-lite:preview:free" class="w-full bg-zinc-800 border border-zinc-700 rounded-2xl px-5 py-4 mb-6 outline-none">
-            <button onclick="saveSettings()" class="w-full py-4 bg-violet-600 font-bold rounded-3xl">SAVE & CONNECT</button>
-            <button onclick="hideSettings()" class="w-full mt-2 text-zinc-500">Close</button>
-        </div>
+    <button id="newChatBtn" class="m-4 bg-violet-600 text-white py-3 rounded-xl font-semibold hover:bg-violet-700 transition shadow-lg shadow-violet-600/20">+ New Conversation</button>
+    <div id="chatList" class="flex-1 overflow-y-auto px-4 space-y-2"></div>
+    <div class="p-4 border-t dark:border-zinc-800 space-y-2">
+      <button id="settingsBtn" class="w-full text-left px-4 py-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition flex items-center gap-3"><i class="fa-solid fa-gear"></i> Settings</button>
+      <button id="darkToggle" class="w-full text-left px-4 py-2 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition flex items-center gap-3"><i class="fa-solid fa-moon"></i> Appearance</button>
     </div>
+  </aside>
 
-    <script>
-        let API_KEY = localStorage.getItem('xllm_key') || '';
-        let MODEL = localStorage.getItem('xllm_model') || 'google/gemini-2.0-flash-lite:preview:free';
-        let messages = [];
+  <div class="flex-1 flex flex-col w-full relative">
+    <header class="h-16 flex items-center justify-between px-6 border-b dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/80 backdrop-blur-md">
+      <button id="openSidebar" class="md:hidden text-xl"><i class="fa-solid fa-bars-staggered"></i></button>
+      <div class="flex-1 text-center font-semibold text-zinc-500 text-sm md:text-base">x-LLM v2.0 <span id="modelBadge" class="bg-violet-100 dark:bg-violet-900/30 text-violet-600 px-2 py-0.5 rounded ml-2 text-[10px]"></span></div>
+      <div class="w-6"></div>
+    </header>
 
-        function init() {
-            document.getElementById('api-key').value = API_KEY;
-            document.getElementById('model-name').value = MODEL;
-            renderMessages();
-            loadHistory();
-        }
+    <main id="chatContainer" class="flex-1 overflow-y-auto p-4 md:p-8 space-y-6 pb-40"></main>
 
-        function toggleSidebar() {
-            const sidebar = document.getElementById('sidebar');
-            sidebar.classList.toggle('sidebar-hidden');
-            sidebar.classList.toggle('sidebar-visible');
-        }
+    <input type="file" id="fileInput" class="hidden" accept="image/*">
+    <input type="file" id="cameraInput" class="hidden" accept="image/*" capture="environment">
 
-        function switchTab(t) {
-            document.getElementById('tab-0').classList.toggle('hidden', t !== 0);
-            document.getElementById('tab-1').classList.toggle('hidden', t !== 1);
-            if(window.innerWidth < 768) toggleSidebar();
-        }
+    <div class="absolute bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-zinc-50 dark:from-zinc-950 via-zinc-50 dark:via-zinc-950 to-transparent">
+      <div class="max-w-4xl mx-auto">
+        <div id="attachmentPreview" class="hidden mb-3 p-3 bg-violet-50 dark:bg-violet-900/20 rounded-2xl border border-violet-200 dark:border-violet-800 flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <div id="previewThumb" class="w-10 h-10 rounded bg-zinc-200 dark:bg-zinc-800 overflow-hidden"></div>
+                <span id="fileNameDisplay" class="text-xs font-medium"></span>
+            </div>
+            <button id="removeFile" class="text-red-500 hover:bg-red-50 p-1 rounded-full">&times;</button>
+        </div>
+        
+        <div class="flex gap-2 items-end bg-white dark:bg-zinc-900 p-2 rounded-2xl border dark:border-zinc-800 shadow-xl focus-within:ring-2 focus-within:ring-violet-500 transition-all">
+          <div class="relative group">
+              <button id="plusBtn" class="bg-zinc-100 dark:bg-zinc-800 p-3 rounded-xl hover:bg-violet-100 dark:hover:bg-violet-900/40 text-violet-600 transition">
+                  <i class="fa-solid fa-plus"></i>
+              </button>
+              <div id="plusMenu" class="hidden absolute bottom-full left-0 mb-2 bg-white dark:bg-zinc-800 border dark:border-zinc-700 rounded-xl shadow-2xl p-2 w-40 flex flex-col gap-1">
+                  <button onclick="document.getElementById('fileInput').click()" class="text-left p-2 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded-lg flex items-center gap-2 text-sm"><i class="fa-solid fa-image"></i> Gallery</button>
+                  <button onclick="document.getElementById('cameraInput').click()" class="text-left p-2 hover:bg-zinc-100 dark:hover:bg-zinc-700 rounded-lg flex items-center gap-2 text-sm"><i class="fa-solid fa-camera"></i> Camera</button>
+              </div>
+          </div>
+          
+          <textarea id="messageInput" class="flex-1 bg-transparent border-none p-3 outline-none resize-none max-h-32 text-sm md:text-base" rows="1" placeholder="Describe or ask x-LLM..."></textarea>
+          
+          <button id="voiceBtn" class="p-3 text-zinc-400 hover:text-violet-500 transition">
+              <i class="fa-solid fa-microphone"></i>
+          </button>
+          
+          <button id="sendBtn" class="bg-violet-600 text-white p-3 rounded-xl hover:bg-violet-700 transition shadow-lg shadow-violet-600/30">
+            <i class="fa-solid fa-paper-plane"></i>
+          </button>
+        </div>
+        <p class="text-[10px] text-center mt-3 text-zinc-500">x-LLM can process images and text. Responses may vary.</p>
+      </div>
+    </div>
+  </div>
+</div>
 
-        function renderMessages() {
-            const container = document.getElementById('messages');
-            if (messages.length === 0) {
-                container.innerHTML = `<div class="h-full flex flex-col items-center justify-center opacity-30 text-center"><div class="text-9xl mb-4">X</div><p class="text-2xl font-bold">Engine Offline - Start Chat</p></div>`;
-                return;
-            }
-            container.innerHTML = '';
-            messages.forEach(msg => {
-                const div = document.createElement('div');
-                div.className = `flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`;
-                div.innerHTML = `<div class="${msg.role === 'user' ? 'bg-violet-600 text-white' : 'bg-zinc-800 border border-zinc-700'} px-6 py-4 rounded-3xl message shadow-lg">${marked.parse(msg.content)}</div>`;
-                container.appendChild(div);
-            });
-            container.scrollTop = container.scrollHeight;
-        }
+<div id="settingsModal" class="fixed inset-0 bg-black/80 backdrop-blur-sm hidden flex items-center justify-center z-[100] p-4">
+  <div class="bg-white dark:bg-zinc-900 p-8 rounded-3xl w-full max-w-md border dark:border-zinc-800 shadow-2xl">
+    <h2 class="text-2xl font-bold logo-font mb-6">Engine Configuration</h2>
+    <div class="space-y-4">
+        <div><label class="text-xs font-bold uppercase text-zinc-500">OpenRouter API Key</label><input id="apiKeyInput" type="password" class="w-full bg-zinc-100 dark:bg-zinc-800 p-3 rounded-xl mt-1 outline-none focus:ring-2 focus:ring-violet-500"></div>
+        <div><label class="text-xs font-bold uppercase text-zinc-500">Vision Model (e.g., google/gemini-pro-1.5)</label><input id="modelInput" type="text" class="w-full bg-zinc-100 dark:bg-zinc-800 p-3 rounded-xl mt-1 outline-none"></div>
+    </div>
+    <div class="flex gap-3 mt-8">
+        <button id="closeSettings" class="flex-1 py-3 rounded-xl bg-zinc-100 dark:bg-zinc-800 font-medium">Cancel</button>
+        <button id="saveSettings" class="flex-1 py-3 rounded-xl bg-violet-600 text-white font-bold">Save Changes</button>
+    </div>
+  </div>
+</div>
 
-        async function sendMessage() {
-            const input = document.getElementById('prompt-input');
-            const text = input.value.trim();
-            if (!text || !API_KEY) return !API_KEY ? showSettings() : null;
+<script>
+(function(){
+let chats = JSON.parse(localStorage.getItem("xllm_chats") || "[]");
+let currentChatId = localStorage.getItem("xllm_currentId") || null;
+let apiKey = localStorage.getItem("xllm_key") || "";
+let model = localStorage.getItem("xllm_model") || "google/gemini-flash-1.5-8b";
+let darkMode = localStorage.getItem("xllm_dark") === "true";
+let selectedFileBase64 = null;
 
-            messages.push({ role: 'user', content: text });
-            input.value = '';
-            renderMessages();
+// Initialization
+const app = document.getElementById("app");
+const loading = document.getElementById("loading");
+if (darkMode) document.documentElement.classList.add("dark");
 
-            const thinking = document.createElement('div');
-            thinking.className = 'text-zinc-500 animate-pulse ml-4 italic';
-            thinking.innerText = 'X-LLM is processing...';
-            document.getElementById('messages').appendChild(thinking);
+function saveState(){
+  localStorage.setItem("xllm_chats", JSON.stringify(chats));
+  localStorage.setItem("xllm_currentId", currentChatId);
+  localStorage.setItem("xllm_key", apiKey);
+  localStorage.setItem("xllm_model", model);
+  localStorage.setItem("xllm_dark", darkMode);
+}
 
-            try {
-                const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
-                    method: 'POST',
-                    headers: { 'Authorization': `Bearer ${API_KEY}`, 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ model: MODEL, messages: messages })
-                });
-                const data = await res.json();
-                thinking.remove();
-                messages.push({ role: 'assistant', content: data.choices[0].message.content });
-                renderMessages();
-            } catch (e) {
-                thinking.innerText = "Error connecting to API!";
-            }
-        }
+// Plus Menu
+document.getElementById("plusBtn").onclick = (e) => {
+    e.stopPropagation();
+    document.getElementById("plusMenu").classList.toggle("hidden");
+};
+document.addEventListener("click", () => document.getElementById("plusMenu").classList.add("hidden"));
 
-        function generateImage() {
-            const grid = document.getElementById('image-grid');
-            grid.innerHTML = '<p class="col-span-2">Generating Vision...</p>';
-            setTimeout(() => {
-                grid.innerHTML = '';
-                for(let i=0; i<2; i++) {
-                    grid.innerHTML += `<img src="https://picsum.photos/seed/${Math.random()}/600" class="rounded-3xl border border-zinc-800">`;
-                }
-            }, 2000);
-        }
+// File handling
+function handleFile(file) {
+    if(!file) return;
+    const reader = new FileReader();
+    reader.onload = (e) => {
+        selectedFileBase64 = e.target.result;
+        document.getElementById("attachmentPreview").classList.remove("hidden");
+        document.getElementById("fileNameDisplay").innerText = "Image Attached: " + file.name;
+        document.getElementById("previewThumb").innerHTML = `<img src="${selectedFileBase64}" class="w-full h-full object-cover">`;
+    };
+    reader.readAsDataURL(file);
+}
 
-        function showSettings() { document.getElementById('settings-modal').classList.remove('hidden'); }
-        function hideSettings() { document.getElementById('settings-modal').classList.add('hidden'); }
-        function saveSettings() {
-            API_KEY = document.getElementById('api-key').value.trim();
-            MODEL = document.getElementById('model-name').value.trim();
-            localStorage.setItem('xllm_key', API_KEY);
-            localStorage.setItem('xllm_model', MODEL);
-            hideSettings();
-            alert("Settings Saved!");
-        }
-        function newChat() { messages = []; renderMessages(); if(window.innerWidth < 768) toggleSidebar(); }
-        function loadHistory() { document.getElementById('history').innerHTML = '<div class="px-6 py-2 text-xs text-zinc-500 uppercase">Today</div><div class="px-6 py-3 hover:bg-zinc-800 rounded-3xl cursor-pointer">Project X-LLM</div>'; }
-    </script>
+document.getElementById("fileInput").onchange = (e) => handleFile(e.target.files[0]);
+document.getElementById("cameraInput").onchange = (e) => handleFile(e.target.files[0]);
+document.getElementById("removeFile").onclick = () => {
+    selectedFileBase64 = null;
+    document.getElementById("attachmentPreview").classList.add("hidden");
+};
+
+// Voice Input (NLP/Speech-to-Text)
+const voiceBtn = document.getElementById("voiceBtn");
+const messageInput = document.getElementById("messageInput");
+
+if ('webkitSpeechRecognition' in window) {
+    const recognition = new webkitSpeechRecognition();
+    recognition.continuous = false;
+    recognition.lang = 'en-US';
+
+    recognition.onstart = () => voiceBtn.classList.add("text-red-500", "animate-pulse");
+    recognition.onend = () => voiceBtn.classList.remove("text-red-500", "animate-pulse");
+    recognition.onresult = (event) => {
+        messageInput.value = event.results[0][0].transcript;
+        messageInput.focus();
+    };
+
+    voiceBtn.onclick = () => recognition.start();
+} else {
+    voiceBtn.style.display = "none";
+}
+
+function createChat(){
+  const chat = { id: Date.now().toString(), title: "New Chat", messages: [] };
+  chats.unshift(chat);
+  currentChatId = chat.id;
+  saveState();
+  renderChats();
+  renderMessages();
+}
+
+function renderChats(){
+  const list = document.getElementById("chatList");
+  list.innerHTML = "";
+  chats.forEach(chat=>{
+    const div = document.createElement("div");
+    div.className = `p-3 rounded-xl cursor-pointer transition flex justify-between items-center group ${chat.id === currentChatId ? 'bg-violet-100 dark:bg-violet-900/30 text-violet-600' : 'hover:bg-zinc-100 dark:hover:bg-zinc-800 text-zinc-500'}`;
+    div.innerHTML = `<span class="truncate text-sm font-medium">${chat.title}</span><button class="opacity-0 group-hover:opacity-100 text-xs hover:text-red-500 transition" onclick="deleteChat('${chat.id}', event)">🗑</button>`;
+    div.onclick = ()=>{ currentChatId = chat.id; saveState(); renderChats(); renderMessages(); };
+    list.appendChild(div);
+  });
+}
+
+window.deleteChat = (id, e) => {
+    e.stopPropagation();
+    chats = chats.filter(c => c.id !== id);
+    if(currentChatId === id) currentChatId = chats[0]?.id || null;
+    if(!currentChatId) createChat();
+    saveState(); renderChats(); renderMessages();
+};
+
+function renderMessages(){
+  const container = document.getElementById("chatContainer");
+  container.innerHTML = "";
+  const chat = chats.find(c => c.id === currentChatId);
+  if (!chat) return;
+  chat.messages.forEach(msg=>{
+    const div = document.createElement("div");
+    div.className = msg.role === "user" ? "flex justify-end" : "flex justify-start";
+    
+    let imageHtml = msg.image ? `<img src="${msg.image}">` : "";
+    
+    const bubble = document.createElement("div");
+    bubble.className = msg.role === "user" 
+        ? "bg-violet-600 text-white p-4 rounded-2xl rounded-tr-none max-w-[85%] shadow-lg message-bubble" 
+        : "bg-white dark:bg-zinc-900 border dark:border-zinc-800 p-4 rounded-2xl rounded-tl-none max-w-[85%] shadow-sm message-bubble";
+    
+    bubble.innerHTML = `${imageHtml}<div>${marked.parse(msg.content)}</div>`;
+    div.appendChild(bubble);
+    container.appendChild(div);
+  });
+  container.scrollTop = container.scrollHeight;
+}
+
+async function streamResponse(payloadMessages){
+  const chat = chats.find(c => c.id === currentChatId);
+  const container = document.getElementById("chatContainer");
+  
+  const aiDiv = document.createElement("div");
+  aiDiv.className = "flex justify-start";
+  const bubble = document.createElement("div");
+  bubble.className = "bg-white dark:bg-zinc-900 border dark:border-zinc-800 p-4 rounded-2xl rounded-tl-none max-w-[85%] shadow-sm";
+  bubble.innerHTML = `<div class="loader"></div> <span class="text-xs text-zinc-500">x-LLM analyzing...</span>`;
+  aiDiv.appendChild(bubble);
+  container.appendChild(aiDiv);
+  container.scrollTop = container.scrollHeight;
+
+  let fullText = "";
+  try {
+    const response = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method:"POST",
+      headers:{ "Authorization":"Bearer "+apiKey, "Content-Type":"application/json" },
+      body: JSON.stringify({ model:model, messages:payloadMessages })
+    });
+    
+    const data = await response.json();
+    if(data.choices) {
+        fullText = data.choices[0].message.content;
+        bubble.innerHTML = marked.parse(fullText);
+        chat.messages.push({role:"assistant", content:fullText});
+        saveState();
+    } else {
+        bubble.innerHTML = "Error: Check your API Key or Model selection.";
+    }
+  } catch(e) { bubble.innerHTML = "Network connection failed."; }
+}
+
+async function sendMessage(){
+  const text = messageInput.value.trim();
+  if(!text && !selectedFileBase64) return;
+  if(!apiKey) { showSettings(); return; }
+
+  const chat = chats.find(c => c.id === currentChatId);
+  if(chat.messages.length === 0 && text) chat.title = text.substring(0, 20);
+
+  const userMsg = { role: "user", content: text, image: selectedFileBase64 };
+  chat.messages.push(userMsg);
+  
+  // API Payload construction
+  let apiMsgContent = [{ type: "text", text: text || "Analyze this image." }];
+  if(selectedFileBase64) {
+      apiMsgContent.push({
+          type: "image_url",
+          image_url: { url: selectedFileBase64 }
+      });
+  }
+
+  const payload = chat.messages.slice(0, -1).map(m => ({ role: m.role, content: m.content }));
+  payload.push({ role: "user", content: apiMsgContent });
+
+  messageInput.value="";
+  selectedFileBase64 = null;
+  document.getElementById("attachmentPreview").classList.add("hidden");
+  renderMessages();
+  saveState();
+  
+  await streamResponse(payload);
+}
+
+// Handlers
+document.getElementById("sendBtn").onclick = sendMessage;
+document.getElementById("newChatBtn").onclick = createChat;
+document.getElementById("darkToggle").onclick = ()=>{ darkMode = !darkMode; document.documentElement.classList.toggle("dark"); saveState(); };
+function showSettings(){ document.getElementById("settingsModal").classList.remove("hidden"); document.getElementById("apiKeyInput").value = apiKey; document.getElementById("modelInput").value = model; }
+document.getElementById("settingsBtn").onclick = showSettings;
+document.getElementById("closeSettings").onclick = ()=> document.getElementById("settingsModal").classList.add("hidden");
+document.getElementById("saveSettings").onclick = ()=>{ apiKey = document.getElementById("apiKeyInput").value.trim(); model = document.getElementById("modelInput").value.trim(); saveState(); document.getElementById("settingsModal").classList.add("hidden"); document.getElementById("modelBadge").innerText = model; };
+document.getElementById("openSidebar").onclick = ()=> document.getElementById("sidebar").classList.remove("-translate-x-full");
+document.getElementById("closeSidebar").onclick = ()=> document.getElementById("sidebar").classList.add("-translate-x-full");
+
+// Auto-resize textarea
+messageInput.addEventListener('input', function() {
+    this.style.height = 'auto';
+    this.style.height = (this.scrollHeight) + 'px';
+});
+
+if(chats.length === 0) createChat();
+document.getElementById("modelBadge").innerText = model;
+renderChats(); renderMessages();
+setTimeout(() => { loading.style.display = "none"; app.classList.remove("hidden"); }, 1000);
+})();
+</script>
 </body>
 </html>
+
